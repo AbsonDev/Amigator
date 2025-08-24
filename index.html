@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simulador de Escritor IA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
+    <style>
+      .perspective { perspective: 1000px; }
+      .transform-style-3d { transform-style: preserve-3d; }
+      .group:hover .rotate-y-10 { transform: rotateY(-10deg); }
+      .backface-hidden { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+      .line-clamp-3 {
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 3;
+      }
+    </style>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              serif: ['Lora', 'serif'],
+            },
+            colors: {
+              'brand-background': '#121212',
+              'brand-surface': '#1e1e1e',
+              'brand-primary': '#8a4fff',
+              'brand-secondary': '#3c3c3c',
+              'brand-text-primary': '#e0e0e0',
+              'brand-text-secondary': '#a0a0a0',
+            }
+          }
+        }
+      }
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://esm.sh/@google/genai@^1.15.0",
+    "react/": "https://esm.sh/react@^19.1.1/",
+    "react": "https://esm.sh/react@^19.1.1",
+    "react-dom/": "https://esm.sh/react-dom@^19.1.1/",
+    "mammoth": "https://esm.sh/mammoth@1.7.2"
+  }
+}
+</script>
+</head>
+  <body class="bg-brand-background">
+    <div id="root"></div>
+  </body>
+</html>
