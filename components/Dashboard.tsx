@@ -5,6 +5,7 @@ import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, AgentIcon, GlobeAltIcon,
 import CharacterEditor from './CharacterEditor';
 import ChapterOrganizer from './ChapterOrganizer';
 import ChapterEditor from './ChapterEditor';
+import EnhancedChapterEditor from './EnhancedChapterEditor';
 import AgentChatbot from './AgentChatbot';
 import WorldBuilder from './WorldBuilder';
 import HistoryViewer from './HistoryViewer';
