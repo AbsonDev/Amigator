@@ -657,9 +657,9 @@ export const analyzeTextForWorldEntries = async (text: string): Promise<Omit<Wor
                 responseSchema: worldEntrySchemaForAnalysis,
             },
         });
-        const results = JSON.parse(response.text);
+        const results: WorldEntry[] = JSON.parse(response.text);
         // Ensure category is valid
-        return results.filter((r: any) => ['Personagem', 'Lugar', 'Item', 'Organização', 'Evento'].includes(r.category));
+        return results.filter((r: WorldEntry) => ['Personagem', 'Lugar', 'Item', 'Organização', 'Evento'].includes(r.category));
     } catch (error) {
         console.error("Error analyzing text for world entries:", error);
         throw new Error("Falha ao analisar o texto para entradas do mundo. Tente novamente.");

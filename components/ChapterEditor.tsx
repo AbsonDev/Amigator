@@ -51,8 +51,13 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
   useEffect(() => {
     if (!activeStory?.autosaveEnabled) return;
 
-    if (autosaveTimeoutRef.current) clearTimeout(autosaveTimeoutRef.current);
+    // Clear any existing timeout
+    if (autosaveTimeoutRef.current) {
+      clearTimeout(autosaveTimeoutRef.current);
+      autosaveTimeoutRef.current = null;
+    }
 
+    // Set new timeout
     autosaveTimeoutRef.current = window.setTimeout(() => {
       const currentChapterState = { ...chapter, content };
       updateActiveStory(prevStory => {
@@ -74,6 +79,13 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
       });
     }, 5000);
 
+    // Cleanup function
+    return () => {
+      if (autosaveTimeoutRef.current) {
+        clearTimeout(autosaveTimeoutRef.current);
+        autosaveTimeoutRef.current = null;
+      }
+    };
   }, [content, activeStory?.autosaveEnabled, chapter, updateActiveStory]);
 
 
