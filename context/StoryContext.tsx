@@ -1,5 +1,5 @@
 
-import React, { createContext, useState, useContext, useMemo, useCallback } from 'react';
+import React, { createContext, useState, useContext, useMemo, useCallback, useRef } from 'react';
 import type { Story } from '../types';
 import useLocalStorage from '../hooks/useLocalStorage';
 import { generateStoryStructure, importStoryFromText } from '../services/geminiService';
@@ -27,6 +27,10 @@ export const StoryProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Add a ref to track if an update is in progress
+  const updateInProgressRef = useRef(false);
+  const pendingUpdateRef = useRef<((story: Story) => Story) | null>(null);
 
   const activeStory = useMemo(() => stories.find(s => s.id === activeStoryId) || null, [stories, activeStoryId]);
 
@@ -35,14 +39,34 @@ export const StoryProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updateActiveStory = useCallback((updater: (story: Story) => Story) => {
-    setStories(prevStories =>
-      prevStories.map(story => {
+    // If an update is in progress, queue this one
+    if (updateInProgressRef.current) {
+      pendingUpdateRef.current = updater;
+      return;
+    }
+    
+    updateInProgressRef.current = true;
+    
+    setStories(prevStories => {
+      const newStories = prevStories.map(story => {
         if (story.id === activeStoryId) {
           return updater(story);
         }
         return story;
-      })
-    );
+      });
+      
+      // Process any pending update
+      setTimeout(() => {
+        updateInProgressRef.current = false;
+        if (pendingUpdateRef.current) {
+          const pending = pendingUpdateRef.current;
+          pendingUpdateRef.current = null;
+          updateActiveStory(pending);
+        }
+      }, 0);
+      
+      return newStories;
+    });
   }, [activeStoryId, setStories]);
   
   const startNewStory = () => {

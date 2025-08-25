@@ -41,8 +41,9 @@ const EditCharacterModal: React.FC<EditCharacterModalProps> = ({ character, onCl
             const newAvatarUrl = await generateCharacterAvatar(editedChar.appearance, activeStory.genre, artStyle);
             setEditedChar(prev => ({ ...prev, avatarUrl: newAvatarUrl }));
         } catch (e) {
-            alert("Falha ao gerar o avatar. Tente novamente.");
-            console.error(e);
+            const errorMessage = e instanceof Error ? e.message : "Erro desconhecido";
+            console.error("Error generating avatar:", errorMessage, e);
+            alert(`Falha ao gerar o avatar: ${errorMessage}. Por favor, tente novamente.`);
         } finally {
             setIsGeneratingAvatar(false);
         }

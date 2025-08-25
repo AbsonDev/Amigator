@@ -8,7 +8,7 @@ interface ChapterOrganizerProps {
     onEditChapter: (chapter: Chapter) => void;
 }
 
-const ChapterOrganizer: React.FC<ChapterOrganizerProps> = ({ onEditChapter }) => {
+const ChapterOrganizer: React.FC<ChapterOrganizerProps> = React.memo(({ onEditChapter }) => {
   const { activeStory } = useStory();
 
   if (!activeStory) return null;
@@ -40,6 +40,8 @@ const ChapterOrganizer: React.FC<ChapterOrganizerProps> = ({ onEditChapter }) =>
         </div>
     </div>
   );
-}
+});
+
+ChapterOrganizer.displayName = 'ChapterOrganizer';
 
 export default ChapterOrganizer;

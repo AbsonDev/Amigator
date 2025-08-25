@@ -527,13 +527,59 @@ const agentResponseSchema = {
                 title: { type: Type.STRING },
                 genre: { type: Type.STRING },
                 synopsis: { type: Type.STRING },
-                characters: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {id: {type: Type.STRING}, name: {type: Type.STRING}, description: {type: Type.STRING}, appearance: {type: Type.STRING}, role: {type: Type.STRING}, avatarUrl: {type: Type.STRING}, narrativeArc: {type: Type.STRING}, relationships: {type: Type.ARRAY, items: {type: Type.OBJECT, properties: {characterId: {type: Type.STRING}, type: {type: Type.STRING}, description: {type: Type.STRING}}}}}}}},
-                chapters: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {id: {type: Type.STRING}, title: {type: Type.STRING}, summary: {type: Type.STRING}, content: {type: Type.STRING}}}},
-                world: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {id: {type: Type.STRING}, name: {type: Type.STRING}, category: {type: Type.STRING}, description: {type: Type.STRING}}}}
+                characters: { 
+                    type: Type.ARRAY, 
+                    items: { 
+                        type: Type.OBJECT, 
+                        properties: {
+                            id: {type: Type.STRING}, 
+                            name: {type: Type.STRING}, 
+                            description: {type: Type.STRING}, 
+                            appearance: {type: Type.STRING}, 
+                            role: {type: Type.STRING}, 
+                            avatarUrl: {type: Type.STRING}, 
+                            narrativeArc: {type: Type.STRING}, 
+                            relationships: {
+                                type: Type.ARRAY, 
+                                items: {
+                                    type: Type.OBJECT, 
+                                    properties: {
+                                        characterId: {type: Type.STRING}, 
+                                        type: {type: Type.STRING}, 
+                                        description: {type: Type.STRING}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                chapters: { 
+                    type: Type.ARRAY, 
+                    items: { 
+                        type: Type.OBJECT, 
+                        properties: {
+                            id: {type: Type.STRING}, 
+                            title: {type: Type.STRING}, 
+                            summary: {type: Type.STRING}, 
+                            content: {type: Type.STRING}
+                        }
+                    }
+                },
+                world: { 
+                    type: Type.ARRAY, 
+                    items: { 
+                        type: Type.OBJECT, 
+                        properties: {
+                            id: {type: Type.STRING}, 
+                            name: {type: Type.STRING}, 
+                            category: {type: Type.STRING}, 
+                            description: {type: Type.STRING}
+                        }
+                    }
+                }
             }
         }
-    },
-    required: ["conversationalResponse"]
+    }
 };
 
 
@@ -657,9 +703,9 @@ export const analyzeTextForWorldEntries = async (text: string): Promise<Omit<Wor
                 responseSchema: worldEntrySchemaForAnalysis,
             },
         });
-        const results = JSON.parse(response.text);
+        const results: WorldEntry[] = JSON.parse(response.text);
         // Ensure category is valid
-        return results.filter((r: any) => ['Personagem', 'Lugar', 'Item', 'Organização', 'Evento'].includes(r.category));
+        return results.filter((r: WorldEntry) => ['Personagem', 'Lugar', 'Item', 'Organização', 'Evento'].includes(r.category));
     } catch (error) {
         console.error("Error analyzing text for world entries:", error);
         throw new Error("Falha ao analisar o texto para entradas do mundo. Tente novamente.");

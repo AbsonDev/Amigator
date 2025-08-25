@@ -106,6 +106,9 @@ export enum AppView {
   EDIT_CHAPTER,
   WORLD,
   HISTORY,
+  ANALYTICS,
+  SCREENPLAY,
+  AUDIO_NARRATOR,
 }
 
 export interface BetaReaderFeedback {

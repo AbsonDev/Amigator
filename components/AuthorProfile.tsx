@@ -9,11 +9,31 @@ interface AuthorProfileProps {
 
 const AuthorProfile: React.FC<AuthorProfileProps> = ({ onProfileCreate }) => {
   const [name, setName] = useState('');
+  const [error, setError] = useState('');
+
+  const validateName = (value: string): boolean => {
+    const trimmed = value.trim();
+    if (trimmed.length < 2) {
+      setError('Nome deve ter pelo menos 2 caracteres');
+      return false;
+    }
+    if (trimmed.length > 50) {
+      setError('Nome deve ter no máximo 50 caracteres');
+      return false;
+    }
+    if (!/^[a-zA-ZÀ-ÿ\s'-]+$/.test(trimmed)) {
+      setError('Nome deve conter apenas letras');
+      return false;
+    }
+    setError('');
+    return true;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim()) {
-      onProfileCreate({ name: name.trim() });
+    const trimmedName = name.trim();
+    if (validateName(trimmedName)) {
+      onProfileCreate({ name: trimmedName });
     }
   };
 
@@ -30,11 +50,17 @@ const AuthorProfile: React.FC<AuthorProfileProps> = ({ onProfileCreate }) => {
               id="authorName"
               type="text"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (error) validateName(e.target.value);
+              }}
               placeholder="Digite seu nome de autor"
               className="w-full px-4 py-3 bg-brand-surface border border-brand-secondary rounded-lg text-brand-text-primary placeholder-brand-text-secondary focus:ring-2 focus:ring-brand-primary focus:border-brand-primary outline-none transition-all duration-300"
               required
             />
+            {error && (
+              <p className="mt-2 text-sm text-red-500">{error}</p>
+            )}
           </div>
           <button
             type="submit"
