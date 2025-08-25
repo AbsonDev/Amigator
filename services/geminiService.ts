@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message } from '../types';
+import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory } from '../types';
 
 if (!process.env.API_KEY) {
   throw new Error("API_KEY environment variable not set");
@@ -150,6 +150,12 @@ export const generateStoryStructure = async (genre: string, theme: string, userP
       })),
       analysis: initialAnalysisState,
       chatHistory: [],
+      world: [],
+      versions: [],
+      actionLog: [
+        { id: `log-${Date.now()}`, timestamp: new Date().toISOString(), actor: 'user', action: 'História criada com IA.' }
+      ],
+      autosaveEnabled: false,
     };
 
     return storyWithIds;
@@ -469,6 +475,12 @@ export const importStoryFromText = async (textContent: string): Promise<Story> =
       })),
       analysis: initialAnalysisState,
       chatHistory: [],
+      world: [],
+      versions: [],
+      actionLog: [
+        { id: `log-${Date.now()}`, timestamp: new Date().toISOString(), actor: 'user', action: 'História importada de um arquivo.' }
+      ],
+      autosaveEnabled: false,
     };
     return storyWithIds;
 
@@ -495,6 +507,9 @@ const agentResponseSchema = {
               ...storySchema.properties,
               analysis: { type: Type.OBJECT, properties: {}, description: "A estrutura de análise da história." },
               chatHistory: { type: Type.ARRAY, items: { type: Type.OBJECT }, description: "O histórico do chat." },
+              world: { type: Type.ARRAY, items: { type: Type.OBJECT }, description: "A enciclopédia do mundo." },
+              versions: { type: Type.ARRAY, items: { type: Type.OBJECT }, description: "As versões salvas da história." },
+              actionLog: { type: Type.ARRAY, items: { type: Type.OBJECT }, description: "O log de atividades." }
             }
         }
     },
@@ -547,5 +562,79 @@ export const chatWithAgent = async (story: Story, conversation: Message[], newMe
     } catch (error) {
         console.error("Error with AI Agent chat:", error);
         throw new Error("O Agente de IA encontrou um problema. Por favor, tente reformular sua solicitação.");
+    }
+};
+
+export const generateInspiration = async (type: 'what-if' | 'plot-twist' | 'name' | 'dialogue', context: string): Promise<string> => {
+  let prompt = `Aja como um muso da criatividade para um escritor. Gere uma ideia concisa e inspiradora com base no tipo e contexto fornecidos.\n\nContexto da História: ${context}\n\n`;
+  switch (type) {
+    case 'what-if':
+      prompt += 'Tipo de Ideia: Cenário "E se?". Gere uma pergunta intrigante que desafie a premissa da história.';
+      break;
+    case 'plot-twist':
+      prompt += 'Tipo de Ideia: Reviravolta na Trama. Sugira uma reviravolta inesperada que poderia acontecer a seguir.';
+      break;
+    case 'name':
+      prompt += 'Tipo de Ideia: Nomes. Gere 5 nomes (personagens ou lugares) que se encaixem no tom e gênero da história.';
+      break;
+    case 'dialogue':
+      prompt += 'Tipo de Ideia: Diálogo. Escreva um pequeno trecho de diálogo (2-3 trocas) com base na seguinte descrição de cena. Descrição da Cena:';
+      break;
+  }
+  
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
+    return response.text.trim();
+  } catch (error) {
+    console.error("Error generating inspiration:", error);
+    throw new Error("Falha ao gerar inspiração. Tente novamente.");
+  }
+};
+
+
+const worldEntrySchema = {
+    type: Type.ARRAY,
+    items: {
+        type: Type.OBJECT,
+        properties: {
+            name: { type: Type.STRING, description: 'O nome do personagem, lugar, item, etc.' },
+            category: { type: Type.STRING, description: "A categoria: 'Personagem', 'Lugar', 'Item', 'Organização' ou 'Evento'." },
+            description: { type: Type.STRING, description: 'Uma breve descrição de uma frase.' }
+        },
+        required: ["name", "category", "description"]
+    }
+};
+
+
+export const analyzeTextForWorldEntries = async (text: string): Promise<Omit<WorldEntry, 'id'>[]> => {
+    const prompt = `
+        Aja como um arquivista de mundos. Analise o seguinte texto e identifique substantivos próprios (nomes de pessoas, lugares, organizações, itens específicos, eventos nomeados) que poderiam ser entradas em uma enciclopédia do mundo (lore bible).
+        Ignore nomes de personagens já muito comuns e foque em termos únicos do universo.
+        Retorne uma lista de sugestões. Se nada for encontrado, retorne uma matriz vazia.
+
+        Texto para analisar:
+        ---
+        ${text}
+        ---
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: worldEntrySchema,
+            },
+        });
+        const results = JSON.parse(response.text);
+        // Ensure category is valid
+        return results.filter((r: any) => ['Personagem', 'Lugar', 'Item', 'Organização', 'Evento'].includes(r.category));
+    } catch (error) {
+        console.error("Error analyzing text for world entries:", error);
+        throw new Error("Falha ao analisar o texto para entradas do mundo. Tente novamente.");
     }
 };

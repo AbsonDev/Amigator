@@ -1,18 +1,26 @@
 import React, { useState, useMemo } from 'react';
-import type { Story, Author, Chapter, ScriptIssue, RepetitionIssue } from '../types';
+import type { Story, Author, Chapter } from '../types';
 import { AppView } from '../types';
-import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, LightbulbIcon, AgentIcon, RefreshIcon } from './Icons';
+import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, AgentIcon, RefreshIcon, GlobeAltIcon, WandSparklesIcon, ArrowDownTrayIcon, ClockIcon } from './Icons';
 import CharacterEditor from './CharacterEditor';
 import ChapterOrganizer from './ChapterOrganizer';
 import ChapterEditor from './ChapterEditor';
 import { analyzeScriptContinuity, analyzeRepetitions } from '../services/geminiService';
 import AgentChatbot from './AgentChatbot';
+import WorldBuilder from './WorldBuilder';
+import IdeaHub from './IdeaHub';
+import HistoryViewer from './HistoryViewer';
+import { jsPDF } from 'jspdf';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
+import saveAs from 'file-saver';
+
 
 interface DashboardProps {
   author: Author;
   story: Story;
   setStory: (updatedStory: Story) => void;
   goToBookshelf: () => void;
+  logAction: (actor: 'user' | 'agent', action: string) => void;
 }
 
 const StatCard: React.FC<{ label: string; value: string | number; }> = ({ label, value }) => (
@@ -24,13 +32,15 @@ const StatCard: React.FC<{ label: string; value: string | number; }> = ({ label,
 
 const LoadingSpinnerSmall = () => <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary mx-auto"></div>;
 
-const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBookshelf }) => {
+const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBookshelf, logAction }) => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.OVERVIEW);
   const [editingChapter, setEditingChapter] = useState<Chapter | null>(null);
   
   const [activeAnalysis, setActiveAnalysis] = useState<'script' | 'repetition' | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const [isIdeaHubOpen, setIsIdeaHubOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const wordCount = useMemo(() => {
     return story.chapters.reduce((acc, chap) => acc + chap.content.split(/\s+/).filter(Boolean).length, 0);
@@ -42,12 +52,12 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
       chapters: story.chapters.map(c => c.id === updatedChapter.id ? updatedChapter : c)
     };
     setStory(updatedStory);
-    alert('Capítulo salvo com sucesso!');
   };
 
   const handleAnalyzeScript = async () => {
     setIsAnalyzing(true);
     setActiveAnalysis('script');
+    logAction('agent', 'Executou uma análise de continuidade da trama.');
     try {
         const results = await analyzeScriptContinuity(story);
         setStory({
@@ -68,6 +78,7 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
   const handleAnalyzeRepetitions = async () => {
     setIsAnalyzing(true);
     setActiveAnalysis('repetition');
+    logAction('agent', 'Executou uma análise de repetições.');
     try {
         const results = await analyzeRepetitions(story);
         setStory({
@@ -111,6 +122,59 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
     })
   };
 
+  const handleExport = async (format: 'pdf' | 'docx' | 'txt') => {
+    const fileName = story.title.replace(/ /g, '_');
+    logAction('user', `Exportou a história como ${format.toUpperCase()}.`);
+
+    if (format === 'txt') {
+      const content = `${story.title}\npor ${author.name}\n\n${story.synopsis}\n\n` + story.chapters.map(c => `## ${c.title}\n\n${c.content}`).join('\n\n');
+      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+      saveAs(blob, `${fileName}.txt`);
+    }
+
+    if (format === 'pdf') {
+      const doc = new jsPDF();
+      doc.setFont('times', 'normal');
+      doc.setFontSize(22);
+      doc.text(story.title, 105, 20, { align: 'center' });
+      doc.setFontSize(14);
+      doc.text(`por ${author.name}`, 105, 30, { align: 'center' });
+
+      story.chapters.forEach((chapter, index) => {
+        if (index > 0 || story.title.length > 0) doc.addPage();
+        doc.setFontSize(18);
+        doc.text(chapter.title, 20, 20);
+        doc.setFontSize(12);
+        const splitContent = doc.splitTextToSize(chapter.content, 170);
+        doc.text(splitContent, 20, 30);
+      });
+      doc.save(`${fileName}.pdf`);
+    }
+
+    if (format === 'docx') {
+        const doc = new Document({
+            sections: [{
+                children: [
+                    new Paragraph({ text: story.title, heading: HeadingLevel.TITLE }),
+                    new Paragraph({ text: `por ${author.name}`, heading: HeadingLevel.HEADING_2 }),
+                    new Paragraph({ text: story.synopsis, style: "IntenseQuote" }),
+                    ...story.chapters.flatMap(chapter => [
+                        new Paragraph({ text: chapter.title, heading: HeadingLevel.HEADING_1 }),
+                        ...chapter.content.split('\n').map(paragraph => new Paragraph({
+                            children: [new TextRun(paragraph)]
+                        }))
+                    ])
+                ],
+            }],
+        });
+
+        const blob = await Packer.toBlob(doc);
+        saveAs(blob, `${fileName}.docx`);
+    }
+    setIsExportModalOpen(false);
+  };
+
+
   const scriptIssues = useMemo(() => story.analysis?.scriptIssues.results.filter(issue => !story.analysis.scriptIssues.ignored.includes(issue.description)) || [], [story.analysis?.scriptIssues]);
   const repetitionIssues = useMemo(() => story.analysis?.repetitions.results.filter(issue => !story.analysis.repetitions.ignored.includes(issue.text)) || [], [story.analysis?.repetitions]);
 
@@ -119,7 +183,10 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
         return <ChapterEditor 
             chapter={editingChapter} 
             onSave={handleUpdateChapter} 
-            onBack={() => setEditingChapter(null)} 
+            onBack={() => setEditingChapter(null)}
+            logAction={logAction}
+            story={story}
+            setStory={setStory}
         />
     }
 
@@ -127,20 +194,28 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
       case AppView.OVERVIEW:
         return (
           <div className="p-4 sm:p-6 md:p-8">
-            <h1 className="text-4xl font-bold font-serif text-brand-text-primary">{story.title}</h1>
-            <p className="text-brand-text-secondary mt-2 max-w-3xl font-serif text-lg">{story.synopsis}</p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+            <header className="flex justify-between items-start gap-4 mb-8">
+                <div>
+                    <h1 className="text-4xl font-bold font-serif text-brand-text-primary">{story.title}</h1>
+                    <p className="text-brand-text-secondary mt-2 max-w-3xl font-serif text-lg">{story.synopsis}</p>
+                </div>
+                <button onClick={() => setIsExportModalOpen(true)} className="flex-shrink-0 flex items-center gap-2 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-primary transition-all">
+                    <ArrowDownTrayIcon className="w-5 h-5" />
+                    Exportar
+                </button>
+            </header>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <StatCard label="Contagem de Palavras" value={wordCount} />
               <StatCard label="Capítulos" value={story.chapters.length} />
               <StatCard label="Personagens" value={story.characters.length} />
             </div>
             <div className="mt-10">
-                <h2 className="text-2xl font-bold font-serif text-brand-text-primary mb-4">Centro de Análise</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <h2 className="text-2xl font-bold font-serif text-brand-text-primary mb-4">Ferramentas do Autor</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Script Continuity Widget */}
                     <div className="bg-brand-surface border border-brand-secondary rounded-lg p-6 flex flex-col">
                         <h3 className="font-bold text-brand-text-primary">Continuidade da Trama</h3>
-                        <p className="text-sm text-brand-text-secondary mt-1 flex-grow">Verifica furos de roteiro e inconsistências na história.</p>
+                        <p className="text-sm text-brand-text-secondary mt-1 flex-grow">Verifica furos de roteiro e inconsistências.</p>
                         {scriptIssues.length > 0 && <p className="text-yellow-400 font-bold my-2">{scriptIssues.length} problemas encontrados</p>}
                         <div className="flex gap-2 mt-4">
                             <button onClick={() => setActiveAnalysis('script')} disabled={isAnalyzing} className="flex-1 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-all">Ver Detalhes</button>
@@ -150,12 +225,21 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
                     {/* Repetition Analysis Widget */}
                     <div className="bg-brand-surface border border-brand-secondary rounded-lg p-6 flex flex-col">
                         <h3 className="font-bold text-brand-text-primary">Análise de Repetição</h3>
-                        <p className="text-sm text-brand-text-secondary mt-1 flex-grow">Encontra palavras e frases repetitivas que podem enfraquecer a prosa.</p>
+                        <p className="text-sm text-brand-text-secondary mt-1 flex-grow">Encontra palavras e frases repetitivas.</p>
                         {repetitionIssues.length > 0 && <p className="text-yellow-400 font-bold my-2">{repetitionIssues.length} repetições encontradas</p>}
                         <div className="flex gap-2 mt-4">
                             <button onClick={() => setActiveAnalysis('repetition')} disabled={isAnalyzing} className="flex-1 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-all">Ver Detalhes</button>
                             <button onClick={handleAnalyzeRepetitions} disabled={isAnalyzing} className="bg-brand-primary p-2 rounded-lg hover:bg-opacity-90 transition-all"><RefreshIcon className={`w-5 h-5 ${isAnalyzing ? 'animate-spin' : ''}`} /></button>
                         </div>
+                    </div>
+                    {/* Idea Hub Widget */}
+                    <div className="bg-brand-surface border border-brand-secondary rounded-lg p-6 flex flex-col">
+                        <h3 className="font-bold text-brand-text-primary">Central de Ideias</h3>
+                        <p className="text-sm text-brand-text-secondary mt-1 flex-grow">Gere reviravoltas, nomes e diálogos para superar o bloqueio criativo.</p>
+                        <button onClick={() => setIsIdeaHubOpen(true)} className="mt-4 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-all flex items-center justify-center gap-2">
+                            <WandSparklesIcon className="w-5 h-5" />
+                            Abrir Central
+                        </button>
                     </div>
                 </div>
             </div>
@@ -165,6 +249,10 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
         return <ChapterOrganizer story={story} onEditChapter={setEditingChapter} />;
       case AppView.CHARACTERS:
         return <CharacterEditor story={story} />;
+      case AppView.WORLD:
+        return <WorldBuilder story={story} setStory={setStory} logAction={logAction} />;
+      case AppView.HISTORY:
+        return <HistoryViewer story={story} setStory={setStory} logAction={logAction} />;
       default:
         return null;
     }
@@ -196,6 +284,8 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
                     <NavItem icon={<HomeIcon className="w-5 h-5"/>} label="Painel de Controle" view={AppView.OVERVIEW} />
                     <NavItem icon={<BookOpenIcon className="w-5 h-5"/>} label="Capítulos" view={AppView.CHAPTERS} />
                     <NavItem icon={<UsersIcon className="w-5 h-5"/>} label="Personagens" view={AppView.CHARACTERS} />
+                    <NavItem icon={<GlobeAltIcon className="w-5 h-5"/>} label="Mundo" view={AppView.WORLD} />
+                    <NavItem icon={<ClockIcon className="w-5 h-5"/>} label="Versionamento & Histórico" view={AppView.HISTORY} />
                 </nav>
                 <div className="mt-auto">
                     <div className="border-t border-brand-secondary pt-4 text-center">
@@ -225,9 +315,35 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
                 story={story} 
                 setStory={setStory}
                 onClose={() => setIsChatbotOpen(false)}
+                logAction={logAction}
             />
         )}
         
+        {isIdeaHubOpen && <IdeaHub story={story} onClose={() => setIsIdeaHubOpen(false)} />}
+
+        {isExportModalOpen && (
+             <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50" onClick={() => setIsExportModalOpen(false)}>
+                <div className="bg-brand-surface rounded-xl border border-brand-secondary w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+                    <h2 className="text-2xl font-bold font-serif text-brand-text-primary mb-4">Exportar Manuscrito</h2>
+                    <p className="text-brand-text-secondary mb-6">Selecione o formato para exportar sua história.</p>
+                    <div className="flex flex-col gap-3">
+                       <button onClick={() => handleExport('pdf')} className="w-full text-left bg-brand-secondary p-4 rounded-lg hover:bg-brand-primary transition-colors">
+                           <p className="font-bold">PDF</p>
+                           <p className="text-sm text-brand-text-secondary">Ideal para compartilhamento e leitura.</p>
+                       </button>
+                       <button onClick={() => handleExport('docx')} className="w-full text-left bg-brand-secondary p-4 rounded-lg hover:bg-brand-primary transition-colors">
+                           <p className="font-bold">DOCX (Microsoft Word)</p>
+                           <p className="text-sm text-brand-text-secondary">Perfeito para enviar para editores.</p>
+                       </button>
+                       <button onClick={() => handleExport('txt')} className="w-full text-left bg-brand-secondary p-4 rounded-lg hover:bg-brand-primary transition-colors">
+                           <p className="font-bold">TXT (Texto Plano)</p>
+                           <p className="text-sm text-brand-text-secondary">Formato simples para máxima compatibilidade.</p>
+                       </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {activeAnalysis && (
             <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50" onClick={() => setActiveAnalysis(null)}>
                 <div className="bg-brand-surface rounded-xl border border-brand-secondary w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>

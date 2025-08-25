@@ -1,24 +1,27 @@
-
-import React, { useState, useMemo, useRef } from 'react';
-import type { Chapter, BetaReaderFeedback, GrammarSuggestion } from '../types';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import type { Chapter, BetaReaderFeedback, GrammarSuggestion, Story, Version } from '../types';
 import { continueWriting, modifyText, getBetaReaderFeedback, checkGrammar } from '../services/geminiService';
 import { SparklesIcon, ClipboardIcon, TextSelectIcon, GrammarIcon } from './Icons';
 
 interface ChapterEditorProps {
   chapter: Chapter;
+  story: Story;
+  setStory: (updatedStory: Story) => void;
   onSave: (updatedChapter: Chapter) => void;
   onBack: () => void;
+  logAction: (actor: 'user' | 'agent', action: string) => void;
 }
 
 const LoadingButtonSpinner = () => <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>;
 const LoadingSpinnerSmall = () => <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-primary"></div>;
 
 
-const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onSave, onBack }) => {
+const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, story, setStory, onSave, onBack, logAction }) => {
   const [content, setContent] = useState(chapter.content);
   const [selectedText, setSelectedText] = useState('');
   const [selectionRange, setSelectionRange] = useState<[number, number]>([0, 0]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const autosaveTimeoutRef = useRef<number | null>(null);
 
   // Loading states
   const [isLoadingContinue, setIsLoadingContinue] = useState(false);
@@ -37,7 +40,51 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onSave, onBack }
   const [customInstruction, setCustomInstruction] = useState('');
   const [grammarSuggestions, setGrammarSuggestions] = useState<GrammarSuggestion[]>([]);
 
-  const handleSave = () => onSave({ ...chapter, content });
+  useEffect(() => {
+    // Cleanup timer on unmount
+    return () => {
+      if (autosaveTimeoutRef.current) {
+        clearTimeout(autosaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!story.autosaveEnabled) return;
+
+    if (autosaveTimeoutRef.current) {
+      clearTimeout(autosaveTimeoutRef.current);
+    }
+
+    autosaveTimeoutRef.current = window.setTimeout(() => {
+      const currentChapterState = { ...chapter, content };
+      const storyWithCurrentChapter = {
+          ...story,
+          chapters: story.chapters.map(c => c.id === currentChapterState.id ? currentChapterState : c)
+      };
+
+      const newVersion: Version = {
+          id: `ver-${Date.now()}`,
+          name: `Autosave - ${new Date().toLocaleString()}`,
+          createdAt: new Date().toISOString(),
+          storyState: JSON.parse(JSON.stringify(storyWithCurrentChapter)) // Deep clone
+      };
+
+      setStory({
+          ...storyWithCurrentChapter,
+          versions: [...story.versions, newVersion].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      });
+      logAction('agent', `Versão salva automaticamente.`);
+    }, 5000); // 5 seconds delay
+
+  }, [content, story.autosaveEnabled, story, setStory, chapter, logAction]);
+
+
+  const handleSave = () => {
+    onSave({ ...chapter, content });
+    logAction('user', `Salvou o capítulo '${chapter.title}'.`);
+    alert('Capítulo salvo com sucesso!');
+  };
 
   const wordCount = useMemo(() => content.split(/\s+/).filter(Boolean).length, [content]);
 

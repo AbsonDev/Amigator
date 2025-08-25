@@ -47,6 +47,30 @@ export interface StoryAnalysis {
     };
 }
 
+export type WorldEntryCategory = 'Personagem' | 'Lugar' | 'Item' | 'Organização' | 'Evento';
+
+export interface WorldEntry {
+  id: string;
+  name: string;
+  category: WorldEntryCategory;
+  description: string;
+}
+
+export interface ActionLogEntry {
+  id: string;
+  timestamp: string;
+  actor: 'user' | 'agent';
+  action: string;
+}
+
+export interface Version {
+  id: string;
+  name: string;
+  createdAt: string;
+  storyState: Story;
+}
+
+
 export interface Story {
   id: string;
   title: string;
@@ -55,13 +79,19 @@ export interface Story {
   chapters: Chapter[];
   analysis: StoryAnalysis;
   chatHistory: Message[];
+  world: WorldEntry[];
+  versions: Version[];
+  actionLog: ActionLogEntry[];
+  autosaveEnabled: boolean;
 }
 
 export enum AppView {
   OVERVIEW,
   CHAPTERS,
   CHARACTERS,
-  EDIT_CHAPTER
+  EDIT_CHAPTER,
+  WORLD,
+  HISTORY,
 }
 
 export interface BetaReaderFeedback {

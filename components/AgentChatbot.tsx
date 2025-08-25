@@ -7,6 +7,7 @@ interface AgentChatbotProps {
     story: Story;
     setStory: (updatedStory: Story) => void;
     onClose: () => void;
+    logAction: (actor: 'user' | 'agent', action: string) => void;
 }
 
 const LoadingDots = () => (
@@ -17,7 +18,7 @@ const LoadingDots = () => (
     </div>
 );
 
-const AgentChatbot: React.FC<AgentChatbotProps> = ({ story, setStory, onClose }) => {
+const AgentChatbot: React.FC<AgentChatbotProps> = ({ story, setStory, onClose, logAction }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -63,6 +64,7 @@ const AgentChatbot: React.FC<AgentChatbotProps> = ({ story, setStory, onClose })
                     ...result.updatedStory,
                     chatHistory: [...historyForApi, agentMessage]
                 };
+                logAction('agent', `Atualizou a história via chat: "${input}"`);
                 setStory(updatedStoryWithHistory);
                 setMessages([...newMessages, agentMessage]);
             } else {
