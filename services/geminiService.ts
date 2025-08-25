@@ -527,13 +527,59 @@ const agentResponseSchema = {
                 title: { type: Type.STRING },
                 genre: { type: Type.STRING },
                 synopsis: { type: Type.STRING },
-                characters: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {id: {type: Type.STRING}, name: {type: Type.STRING}, description: {type: Type.STRING}, appearance: {type: Type.STRING}, role: {type: Type.STRING}, avatarUrl: {type: Type.STRING}, narrativeArc: {type: Type.STRING}, relationships: {type: Type.ARRAY, items: {type: Type.OBJECT, properties: {characterId: {type: Type.STRING}, type: {type: Type.STRING}, description: {type: Type.STRING}}}}}}}},
-                chapters: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {id: {type: Type.STRING}, title: {type: Type.STRING}, summary: {type: Type.STRING}, content: {type: Type.STRING}}}},
-                world: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {id: {type: Type.STRING}, name: {type: Type.STRING}, category: {type: Type.STRING}, description: {type: Type.STRING}}}}
+                characters: { 
+                    type: Type.ARRAY, 
+                    items: { 
+                        type: Type.OBJECT, 
+                        properties: {
+                            id: {type: Type.STRING}, 
+                            name: {type: Type.STRING}, 
+                            description: {type: Type.STRING}, 
+                            appearance: {type: Type.STRING}, 
+                            role: {type: Type.STRING}, 
+                            avatarUrl: {type: Type.STRING}, 
+                            narrativeArc: {type: Type.STRING}, 
+                            relationships: {
+                                type: Type.ARRAY, 
+                                items: {
+                                    type: Type.OBJECT, 
+                                    properties: {
+                                        characterId: {type: Type.STRING}, 
+                                        type: {type: Type.STRING}, 
+                                        description: {type: Type.STRING}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                chapters: { 
+                    type: Type.ARRAY, 
+                    items: { 
+                        type: Type.OBJECT, 
+                        properties: {
+                            id: {type: Type.STRING}, 
+                            title: {type: Type.STRING}, 
+                            summary: {type: Type.STRING}, 
+                            content: {type: Type.STRING}
+                        }
+                    }
+                },
+                world: { 
+                    type: Type.ARRAY, 
+                    items: { 
+                        type: Type.OBJECT, 
+                        properties: {
+                            id: {type: Type.STRING}, 
+                            name: {type: Type.STRING}, 
+                            category: {type: Type.STRING}, 
+                            description: {type: Type.STRING}
+                        }
+                    }
+                }
             }
         }
-    },
-    required: ["conversationalResponse"]
+    }
 };
 
 
