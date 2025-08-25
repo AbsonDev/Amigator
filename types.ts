@@ -108,6 +108,7 @@ export enum AppView {
   HISTORY,
   ANALYTICS,
   SCREENPLAY,
+  AUDIO_NARRATOR,
 }
 
 export interface BetaReaderFeedback {

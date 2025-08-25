@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import type { Author, Chapter } from '../types';
 import { AppView } from '../types';
-import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, AgentIcon, GlobeAltIcon, ArrowDownTrayIcon, ClockIcon, ChevronDoubleLeftIcon, ChartBarIcon, PhotoIcon, FilmIcon } from './Icons';
+import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, AgentIcon, GlobeAltIcon, ArrowDownTrayIcon, ClockIcon, ChevronDoubleLeftIcon, ChartBarIcon, PhotoIcon, FilmIcon, SpeakerWaveIcon } from './Icons';
 import CharacterEditor from './CharacterEditor';
 import ChapterOrganizer from './ChapterOrganizer';
 import ChapterEditor from './ChapterEditor';
@@ -12,6 +12,7 @@ import AuthorTools from './AuthorTools';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import BookCoverGenerator from './BookCoverGenerator';
 import ScreenplayConverter from './ScreenplayConverter';
+import AudioNarrator from './AudioNarrator';
 import { useStory } from '../context/StoryContext';
 import { jsPDF } from 'jspdf';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
@@ -159,6 +160,8 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
         return <AnalyticsDashboard />;
       case AppView.SCREENPLAY:
         return <ScreenplayConverter />;
+      case AppView.AUDIO_NARRATOR:
+        return <AudioNarrator />;
       default:
         return null;
     }
@@ -193,6 +196,7 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
                     <NavItem icon={<UsersIcon className="w-5 h-5 flex-shrink-0"/>} label="Personagens" view={AppView.CHARACTERS} />
                     <NavItem icon={<GlobeAltIcon className="w-5 h-5 flex-shrink-0"/>} label="Mundo" view={AppView.WORLD} />
                     <NavItem icon={<FilmIcon className="w-5 h-5 flex-shrink-0"/>} label="Roteiro" view={AppView.SCREENPLAY} />
+                    <NavItem icon={<SpeakerWaveIcon className="w-5 h-5 flex-shrink-0"/>} label="Narrador" view={AppView.AUDIO_NARRATOR} />
                     <NavItem icon={<ChartBarIcon className="w-5 h-5 flex-shrink-0"/>} label="Analytics" view={AppView.ANALYTICS} />
                     <NavItem icon={<ClockIcon className="w-5 h-5 flex-shrink-0"/>} label="Histórico" view={AppView.HISTORY} />
                 </nav>
