@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
-import type { Story, Version } from '../types';
+import type { Story, Version, ActionLogEntry } from '../types';
 import { AgentIcon, UserCircleIcon } from './Icons';
 
 interface HistoryViewerProps {
     story: Story;
-    setStory: (updatedStory: Story) => void;
-    logAction: (actor: 'user' | 'agent', action: string) => void;
+    setStory: (updater: React.SetStateAction<Story>) => void;
 }
 
-const HistoryViewer: React.FC<HistoryViewerProps> = ({ story, setStory, logAction }) => {
+const HistoryViewer: React.FC<HistoryViewerProps> = ({ story, setStory }) => {
     const [activeTab, setActiveTab] = useState<'versions' | 'log'>('versions');
     const [isSaving, setIsSaving] = useState(false);
     const [versionName, setVersionName] = useState('');
@@ -19,41 +18,69 @@ const HistoryViewer: React.FC<HistoryViewerProps> = ({ story, setStory, logActio
             alert("Por favor, dê um nome para a versão.");
             return;
         }
-        const newVersion: Version = {
-            id: `ver-${Date.now()}`,
-            name: versionName.trim(),
-            createdAt: new Date().toISOString(),
-            storyState: JSON.parse(JSON.stringify(story)) // Deep clone to snapshot
-        };
-        setStory({
-            ...story,
-            versions: [...story.versions, newVersion].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        
+        setStory(prevStory => {
+            const newVersion: Version = {
+                id: `ver-${Date.now()}`,
+                name: versionName.trim(),
+                createdAt: new Date().toISOString(),
+                storyState: JSON.parse(JSON.stringify(prevStory)) // Deep clone to snapshot
+            };
+            const newLogEntry: ActionLogEntry = {
+                id: `log-${Date.now()}`,
+                timestamp: new Date().toISOString(),
+                actor: 'user',
+                action: `Salvou a versão '${versionName.trim()}'.`
+            };
+            return {
+                ...prevStory,
+                versions: [...prevStory.versions, newVersion].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+                actionLog: [...prevStory.actionLog, newLogEntry]
+            };
         });
-        logAction('user', `Salvou a versão '${versionName.trim()}'.`);
         setVersionName('');
         setIsSaving(false);
     };
 
     const handleRestoreVersion = (version: Version) => {
         if (window.confirm(`Tem certeza que deseja restaurar a versão "${version.name}"? Todas as alterações não salvas na versão atual serão perdidas.`)) {
-            const restoredCore = version.storyState;
-            // Restore the core content, but preserve the metadata like versions, logs, and settings from the CURRENT state.
-            setStory({
-              ...story, // Start with current story to keep latest metadata
-              ...restoredCore, // Overwrite with restored content
-              id: story.id, // Ensure current ID is kept
-              versions: story.versions, // Ensure version history is kept
-              actionLog: story.actionLog, // Ensure action log is kept
-              autosaveEnabled: story.autosaveEnabled, // Ensure setting is kept
+            setStory(prevStory => {
+                const restoredCore = version.storyState;
+                const newLogEntry: ActionLogEntry = {
+                    id: `log-${Date.now()}`,
+                    timestamp: new Date().toISOString(),
+                    actor: 'user',
+                    action: `Restaurou a história para a versão '${version.name}'.`
+                };
+                // Restore the core content, but preserve the metadata like versions, logs, and settings from the CURRENT state.
+                const newStoryState = {
+                    ...prevStory, // Start with current story to keep latest metadata
+                    ...restoredCore, // Overwrite with restored content
+                    id: prevStory.id, // Ensure current ID is kept
+                    versions: prevStory.versions, // Ensure version history is kept
+                    actionLog: [...prevStory.actionLog, newLogEntry], // Add restore action to log
+                    autosaveEnabled: prevStory.autosaveEnabled, // Ensure setting is kept
+                };
+                return newStoryState;
             });
-            logAction('user', `Restaurou a história para a versão '${version.name}'.`);
         }
     };
 
     const handleToggleAutosave = () => {
-        const newAutosaveState = !story.autosaveEnabled;
-        setStory({ ...story, autosaveEnabled: newAutosaveState });
-        logAction('user', `O salvamento automático foi ${newAutosaveState ? 'ativado' : 'desativado'}.`);
+        setStory(prevStory => {
+            const newAutosaveState = !prevStory.autosaveEnabled;
+            const newLogEntry: ActionLogEntry = {
+                id: `log-${Date.now()}`,
+                timestamp: new Date().toISOString(),
+                actor: 'user',
+                action: `O salvamento automático foi ${newAutosaveState ? 'ativado' : 'desativado'}.`
+            };
+            return {
+                ...prevStory,
+                autosaveEnabled: newAutosaveState,
+                actionLog: [...prevStory.actionLog, newLogEntry]
+            };
+        });
     };
     
     const sortedActionLog = [...story.actionLog].reverse();

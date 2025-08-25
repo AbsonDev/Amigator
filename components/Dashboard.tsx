@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import type { Story, Author, Chapter } from '../types';
+import type { Story, Author, Chapter, ActionLogEntry } from '../types';
 import { AppView } from '../types';
 import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, AgentIcon, RefreshIcon, GlobeAltIcon, WandSparklesIcon, ArrowDownTrayIcon, ClockIcon } from './Icons';
 import CharacterEditor from './CharacterEditor';
@@ -18,9 +18,8 @@ import saveAs from 'file-saver';
 interface DashboardProps {
   author: Author;
   story: Story;
-  setStory: (updatedStory: Story) => void;
+  setStory: (updater: React.SetStateAction<Story>) => void;
   goToBookshelf: () => void;
-  logAction: (actor: 'user' | 'agent', action: string) => void;
 }
 
 const StatCard: React.FC<{ label: string; value: string | number; }> = ({ label, value }) => (
@@ -32,7 +31,7 @@ const StatCard: React.FC<{ label: string; value: string | number; }> = ({ label,
 
 const LoadingSpinnerSmall = () => <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary mx-auto"></div>;
 
-const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBookshelf, logAction }) => {
+const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBookshelf }) => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.OVERVIEW);
   const [editingChapter, setEditingChapter] = useState<Chapter | null>(null);
   
@@ -46,25 +45,43 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
     return story.chapters.reduce((acc, chap) => acc + chap.content.split(/\s+/).filter(Boolean).length, 0);
   }, [story.chapters]);
 
-  const handleUpdateChapter = (updatedChapter: Chapter) => {
-    const updatedStory = {
-      ...story,
-      chapters: story.chapters.map(c => c.id === updatedChapter.id ? updatedChapter : c)
+  const logAction = (prevStory: Story, actor: 'user' | 'agent', action: string): Story => {
+    const newLogEntry: ActionLogEntry = {
+        id: `log-${Date.now()}-${Math.random()}`,
+        timestamp: new Date().toISOString(),
+        actor,
+        action
     };
-    setStory(updatedStory);
+    return {
+        ...prevStory,
+        actionLog: [...prevStory.actionLog, newLogEntry]
+    };
+  };
+
+  const handleUpdateChapter = (updatedChapter: Chapter) => {
+    setStory(prevStory => {
+        const storyWithLog = logAction(prevStory, 'user', `Salvou o capítulo '${updatedChapter.title}'.`);
+        return {
+            ...storyWithLog,
+            chapters: storyWithLog.chapters.map(c => c.id === updatedChapter.id ? updatedChapter : c)
+        }
+    });
+    alert('Capítulo salvo com sucesso!');
   };
 
   const handleAnalyzeScript = async () => {
     setIsAnalyzing(true);
     setActiveAnalysis('script');
-    logAction('agent', 'Executou uma análise de continuidade da trama.');
     try {
         const results = await analyzeScriptContinuity(story);
-        setStory({
-            ...story,
-            analysis: {
-                ...story.analysis,
-                scriptIssues: { ...story.analysis.scriptIssues, results, lastAnalyzed: new Date().toISOString() }
+        setStory(prevStory => {
+            const storyWithLog = logAction(prevStory, 'agent', 'Executou uma análise de continuidade da trama.');
+            return {
+                ...storyWithLog,
+                analysis: {
+                    ...storyWithLog.analysis,
+                    scriptIssues: { ...storyWithLog.analysis.scriptIssues, results, lastAnalyzed: new Date().toISOString() }
+                }
             }
         });
     } catch (e) {
@@ -78,14 +95,16 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
   const handleAnalyzeRepetitions = async () => {
     setIsAnalyzing(true);
     setActiveAnalysis('repetition');
-    logAction('agent', 'Executou uma análise de repetições.');
     try {
         const results = await analyzeRepetitions(story);
-        setStory({
-            ...story,
-            analysis: {
-                ...story.analysis,
-                repetitions: { ...story.analysis.repetitions, results, lastAnalyzed: new Date().toISOString() }
+        setStory(prevStory => {
+            const storyWithLog = logAction(prevStory, 'agent', 'Executou uma análise de repetições.');
+            return {
+                 ...storyWithLog,
+                analysis: {
+                    ...storyWithLog.analysis,
+                    repetitions: { ...storyWithLog.analysis.repetitions, results, lastAnalyzed: new Date().toISOString() }
+                }
             }
         });
     } catch (e) {
@@ -97,35 +116,35 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
   };
   
   const handleIgnoreScriptIssue = (description: string) => {
-    setStory({
-      ...story,
+    setStory(prevStory => ({
+      ...prevStory,
       analysis: {
-        ...story.analysis,
+        ...prevStory.analysis,
         scriptIssues: {
-          ...story.analysis.scriptIssues,
-          ignored: [...new Set([...story.analysis.scriptIssues.ignored, description])]
+          ...prevStory.analysis.scriptIssues,
+          ignored: [...new Set([...prevStory.analysis.scriptIssues.ignored, description])]
         }
       }
-    })
+    }))
   };
 
   const handleIgnoreRepetition = (text: string) => {
-     setStory({
-      ...story,
+     setStory(prevStory => ({
+      ...prevStory,
       analysis: {
-        ...story.analysis,
+        ...prevStory.analysis,
         repetitions: {
-          ...story.analysis.repetitions,
-          ignored: [...new Set([...story.analysis.repetitions.ignored, text])]
+          ...prevStory.analysis.repetitions,
+          ignored: [...new Set([...prevStory.analysis.repetitions.ignored, text])]
         }
       }
-    })
+    }))
   };
 
   const handleExport = async (format: 'pdf' | 'docx' | 'txt') => {
+    setStory(prev => logAction(prev, 'user', `Exportou a história como ${format.toUpperCase()}.`));
     const fileName = story.title.replace(/ /g, '_');
-    logAction('user', `Exportou a história como ${format.toUpperCase()}.`);
-
+    
     if (format === 'txt') {
       const content = `${story.title}\npor ${author.name}\n\n${story.synopsis}\n\n` + story.chapters.map(c => `## ${c.title}\n\n${c.content}`).join('\n\n');
       const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
@@ -184,7 +203,6 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
             chapter={editingChapter} 
             onSave={handleUpdateChapter} 
             onBack={() => setEditingChapter(null)}
-            logAction={logAction}
             story={story}
             setStory={setStory}
         />
@@ -250,9 +268,9 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
       case AppView.CHARACTERS:
         return <CharacterEditor story={story} />;
       case AppView.WORLD:
-        return <WorldBuilder story={story} setStory={setStory} logAction={logAction} />;
+        return <WorldBuilder story={story} setStory={setStory} />;
       case AppView.HISTORY:
-        return <HistoryViewer story={story} setStory={setStory} logAction={logAction} />;
+        return <HistoryViewer story={story} setStory={setStory} />;
       default:
         return null;
     }
@@ -315,7 +333,6 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
                 story={story} 
                 setStory={setStory}
                 onClose={() => setIsChatbotOpen(false)}
-                logAction={logAction}
             />
         )}
         

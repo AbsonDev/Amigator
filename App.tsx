@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import useLocalStorage from './hooks/useLocalStorage';
-import type { Author, Story, ActionLogEntry } from './types';
+import type { Author, Story } from './types';
 import AuthorProfile from './components/AuthorProfile';
 import StorySetup from './components/StorySetup';
 import Dashboard from './components/Dashboard';
@@ -73,35 +73,16 @@ const App: React.FC = () => {
     setIsCreating(false);
   };
 
-  const logAction = (actor: 'user' | 'agent', action: string) => {
-    setStories(prevStories => prevStories.map(story => {
+  const handleUpdateActiveStory = (updater: React.SetStateAction<Story>) => {
+    setStories(prevStories =>
+      prevStories.map(story => {
         if (story.id === activeStoryId) {
-            const newLogEntry: ActionLogEntry = {
-                id: `log-${Date.now()}-${Math.random()}`,
-                timestamp: new Date().toISOString(),
-                actor,
-                action
-            };
-            return {
-                ...story,
-                actionLog: [...story.actionLog, newLogEntry]
-            };
+          const newStoryState = updater instanceof Function ? updater(story) : updater;
+          return newStoryState;
         }
         return story;
-    }));
-};
-
-  const handleUpdateActiveStory = (updatedStory: Story) => {
-     setStories(prevStories => 
-        prevStories.map(story => {
-          if (story.id === updatedStory.id) {
-             // This robust merge prevents race conditions where a component using stale state
-             // might accidentally overwrite newer data (like a recently saved version).
-            return Object.assign({}, story, updatedStory);
-          }
-          return story;
-        })
-     );
+      })
+    );
   };
 
   const activeStory = useMemo(() => stories.find(s => s.id === activeStoryId) || null, [stories, activeStoryId]);
@@ -125,7 +106,6 @@ const App: React.FC = () => {
       story={activeStory} 
       setStory={handleUpdateActiveStory} 
       goToBookshelf={handleReturnToBookshelf}
-      logAction={logAction}
     />;
   }
 

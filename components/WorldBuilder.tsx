@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import type { Story, WorldEntry, WorldEntryCategory } from '../types';
+import type { Story, WorldEntry, WorldEntryCategory, ActionLogEntry } from '../types';
 import { analyzeTextForWorldEntries } from '../services/geminiService';
 import { SparklesIcon } from './Icons';
 
 interface WorldBuilderProps {
   story: Story;
-  setStory: (updatedStory: Story) => void;
-  logAction: (actor: 'user' | 'agent', action: string) => void;
+  setStory: (updater: React.SetStateAction<Story>) => void;
 }
 
 const categoryStyles: Record<WorldEntryCategory, string> = {
@@ -17,7 +16,7 @@ const categoryStyles: Record<WorldEntryCategory, string> = {
     'Evento': 'bg-red-500/20 text-red-300',
 };
 
-const WorldBuilder: React.FC<WorldBuilderProps> = ({ story, setStory, logAction }) => {
+const WorldBuilder: React.FC<WorldBuilderProps> = ({ story, setStory }) => {
   const [isAdding, setIsAdding] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [suggestions, setSuggestions] = useState<Omit<WorldEntry, 'id'>[]>([]);
@@ -38,9 +37,19 @@ const WorldBuilder: React.FC<WorldBuilderProps> = ({ story, setStory, logAction 
         return;
     }
     const entryToAdd: WorldEntry = { ...newEntry, id: `world-${Date.now()}` };
-    const updatedStory = { ...story, world: [...story.world, entryToAdd] };
-    setStory(updatedStory);
-    logAction('user', `Adicionou o verbete '${entryToAdd.name}' ao Mundo.`);
+    setStory(prevStory => {
+        const newLogEntry: ActionLogEntry = {
+            id: `log-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            actor: 'user',
+            action: `Adicionou o verbete '${entryToAdd.name}' ao Mundo.`
+        };
+        return {
+            ...prevStory,
+            world: [...prevStory.world, entryToAdd],
+            actionLog: [...prevStory.actionLog, newLogEntry]
+        };
+    });
     setNewEntry({ name: '', category: 'Lugar', description: '' });
     setIsAdding(false);
   };
@@ -48,7 +57,15 @@ const WorldBuilder: React.FC<WorldBuilderProps> = ({ story, setStory, logAction 
   const handleSuggestEntries = async () => {
     setIsAnalyzing(true);
     setSuggestions([]);
-    logAction('agent', 'Analisou o texto para sugerir verbetes do mundo.');
+    setStory(prev => {
+        const newLogEntry: ActionLogEntry = {
+            id: `log-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            actor: 'agent',
+            action: 'Analisou o texto para sugerir verbetes do mundo.'
+        };
+        return { ...prev, actionLog: [...prev.actionLog, newLogEntry] };
+    });
     try {
         const fullText = story.chapters.map(c => c.content).join('\n\n');
         const results = await analyzeTextForWorldEntries(fullText);
@@ -65,9 +82,19 @@ const WorldBuilder: React.FC<WorldBuilderProps> = ({ story, setStory, logAction 
   
   const handleAddSuggestion = (suggestion: Omit<WorldEntry, 'id'>) => {
     const entryToAdd: WorldEntry = { ...suggestion, id: `world-${Date.now()}` };
-    const updatedStory = { ...story, world: [...story.world, entryToAdd] };
-    setStory(updatedStory);
-    logAction('user', `Adicionou o verbete sugerido '${entryToAdd.name}' ao Mundo.`);
+    setStory(prevStory => {
+        const newLogEntry: ActionLogEntry = {
+            id: `log-${Date.now()}`,
+            timestamp: new Date().toISOString(),
+            actor: 'user',
+            action: `Adicionou o verbete sugerido '${entryToAdd.name}' ao Mundo.`
+        };
+        return {
+            ...prevStory,
+            world: [...prevStory.world, entryToAdd],
+            actionLog: [...prevStory.actionLog, newLogEntry]
+        };
+    });
     setSuggestions(prev => prev.filter(s => s.name !== suggestion.name));
   }
 

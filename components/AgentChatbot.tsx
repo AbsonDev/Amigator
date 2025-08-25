@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { Story, Message } from '../types';
+import type { Story, Message, ActionLogEntry } from '../types';
 import { chatWithAgent } from '../services/geminiService';
 import { AgentIcon } from './Icons';
 
 interface AgentChatbotProps {
     story: Story;
-    setStory: (updatedStory: Story) => void;
+    setStory: (updater: React.SetStateAction<Story>) => void;
     onClose: () => void;
-    logAction: (actor: 'user' | 'agent', action: string) => void;
 }
 
 const LoadingDots = () => (
@@ -18,7 +17,7 @@ const LoadingDots = () => (
     </div>
 );
 
-const AgentChatbot: React.FC<AgentChatbotProps> = ({ story, setStory, onClose, logAction }) => {
+const AgentChatbot: React.FC<AgentChatbotProps> = ({ story, setStory, onClose }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -33,7 +32,7 @@ const AgentChatbot: React.FC<AgentChatbotProps> = ({ story, setStory, onClose, l
                 { role: 'model', parts: `Olá! Sou seu agente de IA. Como posso ajudar com a história "${story.title}" hoje? Você pode me pedir para alterar a sinopse, personagens, capítulos e muito mais.` }
             ]);
         }
-    }, [story.id]); // Re-initialize if the story changes
+    }, [story.id, story.title, story.chatHistory]); // Depend on chatHistory to reflect external updates
 
 
     const scrollToBottom = () => {
@@ -58,25 +57,32 @@ const AgentChatbot: React.FC<AgentChatbotProps> = ({ story, setStory, onClose, l
             
             const agentMessage: Message = { role: 'model', parts: result.conversationalResponse };
             
-            if (result.updatedStory) {
-                // The AI returns the full story object, let's ensure chat history is consistent
-                const updatedStoryWithHistory = {
-                    ...result.updatedStory,
-                    chatHistory: [...historyForApi, agentMessage]
-                };
-                logAction('agent', `Atualizou a história via chat: "${input}"`);
-                setStory(updatedStoryWithHistory);
-                setMessages([...newMessages, agentMessage]);
-            } else {
-                // If AI didn't return a new story, just update the chat history
-                const finalMessages = [...newMessages, agentMessage];
-                const updatedStoryWithChat = {
-                    ...story,
-                    chatHistory: finalMessages
-                };
-                setStory(updatedStoryWithChat);
-                setMessages(finalMessages);
-            }
+            setStory(prevStory => {
+                const finalMessages = [...historyForApi, agentMessage];
+                
+                if (result.updatedStory) {
+                    const newLogEntry: ActionLogEntry = {
+                        id: `log-${Date.now()}`,
+                        timestamp: new Date().toISOString(),
+                        actor: 'agent',
+                        action: `Atualizou a história via chat: "${input}"`
+                    };
+                    return {
+                        ...result.updatedStory, // Use the story object from the AI
+                        chatHistory: finalMessages, // But ensure our local chat history is the source of truth
+                        actionLog: [...prevStory.actionLog, newLogEntry] // And log the action
+                    };
+                } else {
+                    // If AI didn't return a new story, just update the chat history
+                    return {
+                        ...prevStory,
+                        chatHistory: finalMessages
+                    };
+                }
+            });
+            // Update local component messages state after story is set
+            setMessages(prev => [...prev.filter(m => m.role === 'user'), agentMessage]);
+
 
         } catch (error) {
             const errorMessage: Message = { role: 'model', parts: (error as Error).message };
@@ -125,7 +131,7 @@ const AgentChatbot: React.FC<AgentChatbotProps> = ({ story, setStory, onClose, l
                         disabled={isLoading}
                     />
                     <button type="submit" disabled={isLoading || !input.trim()} className="bg-brand-primary text-white font-bold p-2 rounded-lg hover:bg-opacity-90 disabled:opacity-50">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" /></svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24" fill="currentColor" className="w-5 h-5"><path d="M3.478 2.405a.75.75 0 00-.926.94l2.432 7.905H13.5a.75.75 0 010 1.5H4.984l-2.432 7.905a.75.75 0 00.926.94 60.519 60.519 0 0018.445-8.986.75.75 0 000-1.218A60.517 60.517 0 003.478 2.405z" /></svg>
                     </button>
                 </div>
             </form>
