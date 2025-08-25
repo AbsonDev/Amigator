@@ -1,10 +1,9 @@
 
 import React from 'react';
 import type { Story } from '../types';
+import { useStory } from '../context/StoryContext';
 
-interface CharacterEditorProps {
-    story: Story;
-}
+interface CharacterEditorProps {}
 
 const CharacterCard: React.FC<{ character: Story['characters'][0] }> = ({ character }) => {
     return (
@@ -22,14 +21,16 @@ const CharacterCard: React.FC<{ character: Story['characters'][0] }> = ({ charac
 };
 
 
-const CharacterEditor: React.FC<CharacterEditorProps> = ({ story }) => {
-  // A modal would be used here to edit character details.
-  // For simplicity, we are just displaying them.
+const CharacterEditor: React.FC<CharacterEditorProps> = () => {
+  const { activeStory } = useStory();
+  
+  if (!activeStory) return null;
+
   return (
     <div className="p-4 sm:p-6 md:p-8">
         <h1 className="text-3xl font-bold font-serif text-brand-text-primary mb-6">Elenco de Personagens</h1>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {story.characters.map(character => (
+            {activeStory.characters.map(character => (
                 <CharacterCard key={character.id} character={character} />
             ))}
         </div>

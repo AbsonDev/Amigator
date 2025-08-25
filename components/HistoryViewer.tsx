@@ -1,17 +1,18 @@
 import React, { useState } from 'react';
-import type { Story, Version, ActionLogEntry } from '../types';
+import type { Story, Version } from '../types';
 import { AgentIcon, UserCircleIcon } from './Icons';
+import { useStory } from '../context/StoryContext';
 
-interface HistoryViewerProps {
-    story: Story;
-    setStory: (updater: React.SetStateAction<Story>) => void;
-}
+interface HistoryViewerProps {}
 
-const HistoryViewer: React.FC<HistoryViewerProps> = ({ story, setStory }) => {
+const HistoryViewer: React.FC<HistoryViewerProps> = () => {
+    const { activeStory, updateActiveStory } = useStory();
     const [activeTab, setActiveTab] = useState<'versions' | 'log'>('versions');
     const [isSaving, setIsSaving] = useState(false);
     const [versionName, setVersionName] = useState('');
     const [viewingVersion, setViewingVersion] = useState<Version | null>(null);
+
+    if (!activeStory) return null;
 
     const handleSaveVersion = () => {
         if (!versionName.trim()) {
@@ -19,23 +20,17 @@ const HistoryViewer: React.FC<HistoryViewerProps> = ({ story, setStory }) => {
             return;
         }
         
-        setStory(prevStory => {
+        updateActiveStory(prevStory => {
             const newVersion: Version = {
                 id: `ver-${Date.now()}`,
                 name: versionName.trim(),
                 createdAt: new Date().toISOString(),
                 storyState: JSON.parse(JSON.stringify(prevStory)) // Deep clone to snapshot
             };
-            const newLogEntry: ActionLogEntry = {
-                id: `log-${Date.now()}`,
-                timestamp: new Date().toISOString(),
-                actor: 'user',
-                action: `Salvou a versão '${versionName.trim()}'.`
-            };
             return {
                 ...prevStory,
                 versions: [...prevStory.versions, newVersion].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-                actionLog: [...prevStory.actionLog, newLogEntry]
+                actionLog: [...prevStory.actionLog, { id: `log-${Date.now()}`, timestamp: new Date().toISOString(), actor: 'user', action: `Salvou a versão '${versionName.trim()}'.`}]
             };
         });
         setVersionName('');
@@ -44,22 +39,15 @@ const HistoryViewer: React.FC<HistoryViewerProps> = ({ story, setStory }) => {
 
     const handleRestoreVersion = (version: Version) => {
         if (window.confirm(`Tem certeza que deseja restaurar a versão "${version.name}"? Todas as alterações não salvas na versão atual serão perdidas.`)) {
-            setStory(prevStory => {
+            updateActiveStory(prevStory => {
                 const restoredCore = version.storyState;
-                const newLogEntry: ActionLogEntry = {
-                    id: `log-${Date.now()}`,
-                    timestamp: new Date().toISOString(),
-                    actor: 'user',
-                    action: `Restaurou a história para a versão '${version.name}'.`
-                };
-                // Restore the core content, but preserve the metadata like versions, logs, and settings from the CURRENT state.
                 const newStoryState = {
-                    ...prevStory, // Start with current story to keep latest metadata
-                    ...restoredCore, // Overwrite with restored content
-                    id: prevStory.id, // Ensure current ID is kept
-                    versions: prevStory.versions, // Ensure version history is kept
-                    actionLog: [...prevStory.actionLog, newLogEntry], // Add restore action to log
-                    autosaveEnabled: prevStory.autosaveEnabled, // Ensure setting is kept
+                    ...prevStory,
+                    ...restoredCore,
+                    id: prevStory.id,
+                    versions: prevStory.versions,
+                    actionLog: [...prevStory.actionLog, { id: `log-${Date.now()}`, timestamp: new Date().toISOString(), actor: 'user' as const, action: `Restaurou a história para a versão '${version.name}'.`}],
+                    autosaveEnabled: prevStory.autosaveEnabled,
                 };
                 return newStoryState;
             });
@@ -67,24 +55,18 @@ const HistoryViewer: React.FC<HistoryViewerProps> = ({ story, setStory }) => {
     };
 
     const handleToggleAutosave = () => {
-        setStory(prevStory => {
+        updateActiveStory(prevStory => {
             const newAutosaveState = !prevStory.autosaveEnabled;
-            const newLogEntry: ActionLogEntry = {
-                id: `log-${Date.now()}`,
-                timestamp: new Date().toISOString(),
-                actor: 'user',
-                action: `O salvamento automático foi ${newAutosaveState ? 'ativado' : 'desativado'}.`
-            };
             return {
                 ...prevStory,
                 autosaveEnabled: newAutosaveState,
-                actionLog: [...prevStory.actionLog, newLogEntry]
+                actionLog: [...prevStory.actionLog, { id: `log-${Date.now()}`, timestamp: new Date().toISOString(), actor: 'user', action: `O salvamento automático foi ${newAutosaveState ? 'ativado' : 'desativado'}.`}]
             };
         });
     };
     
-    const sortedActionLog = [...story.actionLog].reverse();
-    const sortedVersions = [...story.versions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const sortedActionLog = [...activeStory.actionLog].reverse();
+    const sortedVersions = [...activeStory.versions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return (
         <div className="p-4 sm:p-6 md:p-8">
@@ -108,8 +90,8 @@ const HistoryViewer: React.FC<HistoryViewerProps> = ({ story, setStory }) => {
                                 <h2 className="font-bold text-brand-text-primary">Salvar Versões Automaticamente</h2>
                                 <p className="text-sm text-brand-text-secondary mt-1">Cria uma versão de backup 5 segundos após você parar de digitar no editor.</p>
                             </div>
-                            <button onClick={handleToggleAutosave} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${story.autosaveEnabled ? 'bg-brand-primary' : 'bg-brand-secondary'}`}>
-                                <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${story.autosaveEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                            <button onClick={handleToggleAutosave} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${activeStory.autosaveEnabled ? 'bg-brand-primary' : 'bg-brand-secondary'}`}>
+                                <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${activeStory.autosaveEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
                             </button>
                         </div>
                     </div>

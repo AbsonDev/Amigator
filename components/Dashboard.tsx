@@ -1,15 +1,17 @@
+
 import React, { useState, useMemo } from 'react';
-import type { Story, Author, Chapter, ActionLogEntry } from '../types';
+import type { Author, Chapter } from '../types';
 import { AppView } from '../types';
-import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, AgentIcon, RefreshIcon, GlobeAltIcon, WandSparklesIcon, ArrowDownTrayIcon, ClockIcon } from './Icons';
+import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, AgentIcon, GlobeAltIcon, ArrowDownTrayIcon, ClockIcon } from './Icons';
 import CharacterEditor from './CharacterEditor';
 import ChapterOrganizer from './ChapterOrganizer';
 import ChapterEditor from './ChapterEditor';
-import { analyzeScriptContinuity, analyzeRepetitions } from '../services/geminiService';
 import AgentChatbot from './AgentChatbot';
 import WorldBuilder from './WorldBuilder';
 import IdeaHub from './IdeaHub';
 import HistoryViewer from './HistoryViewer';
+import AuthorTools from './AuthorTools';
+import { useStory } from '../context/StoryContext';
 import { jsPDF } from 'jspdf';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import saveAs from 'file-saver';
@@ -17,8 +19,6 @@ import saveAs from 'file-saver';
 
 interface DashboardProps {
   author: Author;
-  story: Story;
-  setStory: (updater: React.SetStateAction<Story>) => void;
   goToBookshelf: () => void;
 }
 
@@ -29,124 +29,31 @@ const StatCard: React.FC<{ label: string; value: string | number; }> = ({ label,
   </div>
 );
 
-const LoadingSpinnerSmall = () => <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary mx-auto"></div>;
-
-const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBookshelf }) => {
+const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
+  const { activeStory, updateActiveStory } = useStory();
   const [currentView, setCurrentView] = useState<AppView>(AppView.OVERVIEW);
   const [editingChapter, setEditingChapter] = useState<Chapter | null>(null);
   
-  const [activeAnalysis, setActiveAnalysis] = useState<'script' | 'repetition' | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
-  const [isIdeaHubOpen, setIsIdeaHubOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const wordCount = useMemo(() => {
-    return story.chapters.reduce((acc, chap) => acc + chap.content.split(/\s+/).filter(Boolean).length, 0);
-  }, [story.chapters]);
-
-  const logAction = (prevStory: Story, actor: 'user' | 'agent', action: string): Story => {
-    const newLogEntry: ActionLogEntry = {
-        id: `log-${Date.now()}-${Math.random()}`,
-        timestamp: new Date().toISOString(),
-        actor,
-        action
-    };
-    return {
-        ...prevStory,
-        actionLog: [...prevStory.actionLog, newLogEntry]
-    };
-  };
-
-  const handleUpdateChapter = (updatedChapter: Chapter) => {
-    setStory(prevStory => {
-        const storyWithLog = logAction(prevStory, 'user', `Salvou o capítulo '${updatedChapter.title}'.`);
-        return {
-            ...storyWithLog,
-            chapters: storyWithLog.chapters.map(c => c.id === updatedChapter.id ? updatedChapter : c)
-        }
-    });
-    alert('Capítulo salvo com sucesso!');
-  };
-
-  const handleAnalyzeScript = async () => {
-    setIsAnalyzing(true);
-    setActiveAnalysis('script');
-    try {
-        const results = await analyzeScriptContinuity(story);
-        setStory(prevStory => {
-            const storyWithLog = logAction(prevStory, 'agent', 'Executou uma análise de continuidade da trama.');
-            return {
-                ...storyWithLog,
-                analysis: {
-                    ...storyWithLog.analysis,
-                    scriptIssues: { ...storyWithLog.analysis.scriptIssues, results, lastAnalyzed: new Date().toISOString() }
-                }
-            }
-        });
-    } catch (e) {
-        alert((e as Error).message);
-        setActiveAnalysis(null);
-    } finally {
-        setIsAnalyzing(false);
-    }
-  };
-
-  const handleAnalyzeRepetitions = async () => {
-    setIsAnalyzing(true);
-    setActiveAnalysis('repetition');
-    try {
-        const results = await analyzeRepetitions(story);
-        setStory(prevStory => {
-            const storyWithLog = logAction(prevStory, 'agent', 'Executou uma análise de repetições.');
-            return {
-                 ...storyWithLog,
-                analysis: {
-                    ...storyWithLog.analysis,
-                    repetitions: { ...storyWithLog.analysis.repetitions, results, lastAnalyzed: new Date().toISOString() }
-                }
-            }
-        });
-    } catch (e) {
-        alert((e as Error).message);
-        setActiveAnalysis(null);
-    } finally {
-        setIsAnalyzing(false);
-    }
-  };
-  
-  const handleIgnoreScriptIssue = (description: string) => {
-    setStory(prevStory => ({
-      ...prevStory,
-      analysis: {
-        ...prevStory.analysis,
-        scriptIssues: {
-          ...prevStory.analysis.scriptIssues,
-          ignored: [...new Set([...prevStory.analysis.scriptIssues.ignored, description])]
-        }
-      }
-    }))
-  };
-
-  const handleIgnoreRepetition = (text: string) => {
-     setStory(prevStory => ({
-      ...prevStory,
-      analysis: {
-        ...prevStory.analysis,
-        repetitions: {
-          ...prevStory.analysis.repetitions,
-          ignored: [...new Set([...prevStory.analysis.repetitions.ignored, text])]
-        }
-      }
-    }))
-  };
+    if (!activeStory) return 0;
+    return activeStory.chapters.reduce((acc, chap) => acc + chap.content.split(/\s+/).filter(Boolean).length, 0);
+  }, [activeStory?.chapters]);
 
   const handleExport = async (format: 'pdf' | 'docx' | 'txt') => {
-    setStory(prev => logAction(prev, 'user', `Exportou a história como ${format.toUpperCase()}.`));
-    const fileName = story.title.replace(/ /g, '_');
+    if (!activeStory) return;
+    
+    updateActiveStory(story => ({
+      ...story,
+      actionLog: [...story.actionLog, { id: `log-${Date.now()}`, timestamp: new Date().toISOString(), actor: 'user', action: `Exportou a história como ${format.toUpperCase()}.`}]
+    }));
+
+    const fileName = activeStory.title.replace(/ /g, '_');
     
     if (format === 'txt') {
-      const content = `${story.title}\npor ${author.name}\n\n${story.synopsis}\n\n` + story.chapters.map(c => `## ${c.title}\n\n${c.content}`).join('\n\n');
+      const content = `${activeStory.title}\npor ${author.name}\n\n${activeStory.synopsis}\n\n` + activeStory.chapters.map(c => `## ${c.title}\n\n${c.content}`).join('\n\n');
       const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
       saveAs(blob, `${fileName}.txt`);
     }
@@ -155,12 +62,12 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
       const doc = new jsPDF();
       doc.setFont('times', 'normal');
       doc.setFontSize(22);
-      doc.text(story.title, 105, 20, { align: 'center' });
+      doc.text(activeStory.title, 105, 20, { align: 'center' });
       doc.setFontSize(14);
       doc.text(`por ${author.name}`, 105, 30, { align: 'center' });
 
-      story.chapters.forEach((chapter, index) => {
-        if (index > 0 || story.title.length > 0) doc.addPage();
+      activeStory.chapters.forEach((chapter, index) => {
+        if (index > 0 || activeStory.title.length > 0) doc.addPage();
         doc.setFontSize(18);
         doc.text(chapter.title, 20, 20);
         doc.setFontSize(12);
@@ -174,10 +81,10 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
         const doc = new Document({
             sections: [{
                 children: [
-                    new Paragraph({ text: story.title, heading: HeadingLevel.TITLE }),
+                    new Paragraph({ text: activeStory.title, heading: HeadingLevel.TITLE }),
                     new Paragraph({ text: `por ${author.name}`, heading: HeadingLevel.HEADING_2 }),
-                    new Paragraph({ text: story.synopsis, style: "IntenseQuote" }),
-                    ...story.chapters.flatMap(chapter => [
+                    new Paragraph({ text: activeStory.synopsis, style: "IntenseQuote" }),
+                    ...activeStory.chapters.flatMap(chapter => [
                         new Paragraph({ text: chapter.title, heading: HeadingLevel.HEADING_1 }),
                         ...chapter.content.split('\n').map(paragraph => new Paragraph({
                             children: [new TextRun(paragraph)]
@@ -194,17 +101,19 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
   };
 
 
-  const scriptIssues = useMemo(() => story.analysis?.scriptIssues.results.filter(issue => !story.analysis.scriptIssues.ignored.includes(issue.description)) || [], [story.analysis?.scriptIssues]);
-  const repetitionIssues = useMemo(() => story.analysis?.repetitions.results.filter(issue => !story.analysis.repetitions.ignored.includes(issue.text)) || [], [story.analysis?.repetitions]);
+  if (!activeStory) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <p>Carregando história...</p>
+      </div>
+    );
+  }
 
   const renderContent = () => {
     if (editingChapter) {
         return <ChapterEditor 
             chapter={editingChapter} 
-            onSave={handleUpdateChapter} 
             onBack={() => setEditingChapter(null)}
-            story={story}
-            setStory={setStory}
         />
     }
 
@@ -214,8 +123,8 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
           <div className="p-4 sm:p-6 md:p-8">
             <header className="flex justify-between items-start gap-4 mb-8">
                 <div>
-                    <h1 className="text-4xl font-bold font-serif text-brand-text-primary">{story.title}</h1>
-                    <p className="text-brand-text-secondary mt-2 max-w-3xl font-serif text-lg">{story.synopsis}</p>
+                    <h1 className="text-4xl font-bold font-serif text-brand-text-primary">{activeStory.title}</h1>
+                    <p className="text-brand-text-secondary mt-2 max-w-3xl font-serif text-lg">{activeStory.synopsis}</p>
                 </div>
                 <button onClick={() => setIsExportModalOpen(true)} className="flex-shrink-0 flex items-center gap-2 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-primary transition-all">
                     <ArrowDownTrayIcon className="w-5 h-5" />
@@ -224,53 +133,20 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
             </header>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <StatCard label="Contagem de Palavras" value={wordCount} />
-              <StatCard label="Capítulos" value={story.chapters.length} />
-              <StatCard label="Personagens" value={story.characters.length} />
+              <StatCard label="Capítulos" value={activeStory.chapters.length} />
+              <StatCard label="Personagens" value={activeStory.characters.length} />
             </div>
-            <div className="mt-10">
-                <h2 className="text-2xl font-bold font-serif text-brand-text-primary mb-4">Ferramentas do Autor</h2>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Script Continuity Widget */}
-                    <div className="bg-brand-surface border border-brand-secondary rounded-lg p-6 flex flex-col">
-                        <h3 className="font-bold text-brand-text-primary">Continuidade da Trama</h3>
-                        <p className="text-sm text-brand-text-secondary mt-1 flex-grow">Verifica furos de roteiro e inconsistências.</p>
-                        {scriptIssues.length > 0 && <p className="text-yellow-400 font-bold my-2">{scriptIssues.length} problemas encontrados</p>}
-                        <div className="flex gap-2 mt-4">
-                            <button onClick={() => setActiveAnalysis('script')} disabled={isAnalyzing} className="flex-1 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-all">Ver Detalhes</button>
-                            <button onClick={handleAnalyzeScript} disabled={isAnalyzing} className="bg-brand-primary p-2 rounded-lg hover:bg-opacity-90 transition-all"><RefreshIcon className={`w-5 h-5 ${isAnalyzing ? 'animate-spin' : ''}`} /></button>
-                        </div>
-                    </div>
-                    {/* Repetition Analysis Widget */}
-                    <div className="bg-brand-surface border border-brand-secondary rounded-lg p-6 flex flex-col">
-                        <h3 className="font-bold text-brand-text-primary">Análise de Repetição</h3>
-                        <p className="text-sm text-brand-text-secondary mt-1 flex-grow">Encontra palavras e frases repetitivas.</p>
-                        {repetitionIssues.length > 0 && <p className="text-yellow-400 font-bold my-2">{repetitionIssues.length} repetições encontradas</p>}
-                        <div className="flex gap-2 mt-4">
-                            <button onClick={() => setActiveAnalysis('repetition')} disabled={isAnalyzing} className="flex-1 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-all">Ver Detalhes</button>
-                            <button onClick={handleAnalyzeRepetitions} disabled={isAnalyzing} className="bg-brand-primary p-2 rounded-lg hover:bg-opacity-90 transition-all"><RefreshIcon className={`w-5 h-5 ${isAnalyzing ? 'animate-spin' : ''}`} /></button>
-                        </div>
-                    </div>
-                    {/* Idea Hub Widget */}
-                    <div className="bg-brand-surface border border-brand-secondary rounded-lg p-6 flex flex-col">
-                        <h3 className="font-bold text-brand-text-primary">Central de Ideias</h3>
-                        <p className="text-sm text-brand-text-secondary mt-1 flex-grow">Gere reviravoltas, nomes e diálogos para superar o bloqueio criativo.</p>
-                        <button onClick={() => setIsIdeaHubOpen(true)} className="mt-4 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-all flex items-center justify-center gap-2">
-                            <WandSparklesIcon className="w-5 h-5" />
-                            Abrir Central
-                        </button>
-                    </div>
-                </div>
-            </div>
+            <AuthorTools />
           </div>
         );
       case AppView.CHAPTERS:
-        return <ChapterOrganizer story={story} onEditChapter={setEditingChapter} />;
+        return <ChapterOrganizer onEditChapter={setEditingChapter} />;
       case AppView.CHARACTERS:
-        return <CharacterEditor story={story} />;
+        return <CharacterEditor />;
       case AppView.WORLD:
-        return <WorldBuilder story={story} setStory={setStory} />;
+        return <WorldBuilder />;
       case AppView.HISTORY:
-        return <HistoryViewer story={story} setStory={setStory} />;
+        return <HistoryViewer />;
       default:
         return null;
     }
@@ -329,15 +205,9 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
         </button>
 
         {isChatbotOpen && (
-            <AgentChatbot 
-                story={story} 
-                setStory={setStory}
-                onClose={() => setIsChatbotOpen(false)}
-            />
+            <AgentChatbot onClose={() => setIsChatbotOpen(false)} />
         )}
         
-        {isIdeaHubOpen && <IdeaHub story={story} onClose={() => setIsIdeaHubOpen(false)} />}
-
         {isExportModalOpen && (
              <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50" onClick={() => setIsExportModalOpen(false)}>
                 <div className="bg-brand-surface rounded-xl border border-brand-secondary w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
@@ -357,70 +227,6 @@ const Dashboard: React.FC<DashboardProps> = ({ author, story, setStory, goToBook
                            <p className="text-sm text-brand-text-secondary">Formato simples para máxima compatibilidade.</p>
                        </button>
                     </div>
-                </div>
-            </div>
-        )}
-
-        {activeAnalysis && (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50" onClick={() => setActiveAnalysis(null)}>
-                <div className="bg-brand-surface rounded-xl border border-brand-secondary w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
-                    {isAnalyzing && <div className="text-center p-8"><LoadingSpinnerSmall /> <p className="mt-4 text-brand-text-secondary">A IA está lendo sua história...</p></div>}
-                    
-                    {activeAnalysis === 'script' && !isAnalyzing && (
-                        <>
-                            <h2 className="text-2xl font-bold font-serif text-brand-text-primary mb-4">Análise de Continuidade do Roteiro</h2>
-                            {scriptIssues.length > 0 ? (
-                                <div className="space-y-4">
-                                    {scriptIssues.map((issue, index) => (
-                                        <div key={index} className="bg-brand-background p-4 rounded-lg border border-brand-secondary">
-                                            <p className="font-semibold text-brand-text-primary">{issue.description}</p>
-                                            <p className="text-sm text-brand-text-secondary mt-2"><strong className="text-brand-text-primary">Sugestão:</strong> {issue.suggestion}</p>
-                                            <div className="mt-2 flex flex-wrap gap-2 items-center">
-                                                <span className="text-xs font-bold text-brand-text-secondary">Capítulos:</span>
-                                                {issue.involvedChapters.map(chap => <span key={chap} className="text-xs bg-brand-secondary px-2 py-1 rounded-full">{chap}</span>)}
-                                            </div>
-                                            <div className="text-right mt-2">
-                                                <button onClick={() => handleIgnoreScriptIssue(issue.description)} className="text-xs font-semibold text-brand-text-secondary hover:text-white transition-colors px-3 py-1">Ignorar</button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center p-8">
-                                    <p className="text-lg font-semibold text-brand-text-primary">Nenhum furo de roteiro encontrado!</p>
-                                    <p className="text-brand-text-secondary mt-2">Sua história parece consistente. Bom trabalho!</p>
-                                </div>
-                            )}
-                        </>
-                    )}
-
-                    {activeAnalysis === 'repetition' && !isAnalyzing && (
-                         <>
-                            <h2 className="text-2xl font-bold font-serif text-brand-text-primary mb-4">Análise de Repetição</h2>
-                            {repetitionIssues.length > 0 ? (
-                                <div className="space-y-4">
-                                    {repetitionIssues.map((issue, index) => (
-                                        <div key={index} className="bg-brand-background p-4 rounded-lg border border-brand-secondary">
-                                            <p className="font-semibold text-brand-text-primary">Texto repetido: "<span className="italic text-brand-primary">{issue.text}</span>" (encontrado {issue.count} vezes)</p>
-                                            <div className="mt-2 flex flex-wrap gap-2 items-center">
-                                                <span className="text-xs font-bold text-brand-text-secondary">Capítulos:</span>
-                                                {issue.locations.map(loc => <span key={loc} className="text-xs bg-brand-secondary px-2 py-1 rounded-full">{loc}</span>)}
-                                            </div>
-                                             <div className="text-right mt-2">
-                                                <button onClick={() => handleIgnoreRepetition(issue.text)} className="text-xs font-semibold text-brand-text-secondary hover:text-white transition-colors px-3 py-1">Ignorar</button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center p-8">
-                                    <p className="text-lg font-semibold text-brand-text-primary">Nenhuma repetição significativa encontrada!</p>
-                                    <p className="text-brand-text-secondary mt-2">Sua prosa parece variada e estilisticamente sólida.</p>
-                                </div>
-                            )}
-                        </>
-                    )}
-                    <button onClick={() => setActiveAnalysis(null)} className="mt-6 w-full bg-brand-primary text-white font-bold py-2 rounded-lg hover:bg-opacity-90">Fechar</button>
                 </div>
             </div>
         )}

@@ -1,22 +1,23 @@
 
 import React from 'react';
-import type { Story, Chapter } from '../types';
+import type { Chapter } from '../types';
+import { useStory } from '../context/StoryContext';
 import { PencilIcon } from './Icons';
 
 interface ChapterOrganizerProps {
-    story: Story;
     onEditChapter: (chapter: Chapter) => void;
 }
 
-const ChapterOrganizer: React.FC<ChapterOrganizerProps> = ({ story, onEditChapter }) => {
-  // In a real app, you'd implement drag-and-drop here.
-  // For now, it's a static list.
+const ChapterOrganizer: React.FC<ChapterOrganizerProps> = ({ onEditChapter }) => {
+  const { activeStory } = useStory();
+
+  if (!activeStory) return null;
 
   return (
     <div className="p-4 sm:p-6 md:p-8">
         <h1 className="text-3xl font-bold font-serif text-brand-text-primary mb-6">Estrutura de Capítulos</h1>
         <div className="space-y-4">
-            {story.chapters.map((chapter, index) => (
+            {activeStory.chapters.map((chapter, index) => (
                 <div key={chapter.id} className="bg-brand-surface p-4 rounded-lg border border-brand-secondary flex justify-between items-center transition-all hover:border-brand-primary hover:shadow-lg">
                     <div className="flex items-center gap-4">
                         <span className="text-lg font-bold text-brand-primary">

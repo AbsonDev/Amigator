@@ -1,11 +1,11 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import type { Story, Message, ActionLogEntry } from '../types';
+import type { Message } from '../types';
 import { chatWithAgent } from '../services/geminiService';
 import { AgentIcon } from './Icons';
+import { useStory } from '../context/StoryContext';
 
 interface AgentChatbotProps {
-    story: Story;
-    setStory: (updater: React.SetStateAction<Story>) => void;
     onClose: () => void;
 }
 
@@ -17,22 +17,23 @@ const LoadingDots = () => (
     </div>
 );
 
-const AgentChatbot: React.FC<AgentChatbotProps> = ({ story, setStory, onClose }) => {
+const AgentChatbot: React.FC<AgentChatbotProps> = ({ onClose }) => {
+    const { activeStory, updateActiveStory } = useStory();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        // Initialize with history, adding a welcome message if history is empty
-        if (story.chatHistory && story.chatHistory.length > 0) {
-            setMessages(story.chatHistory);
+        if (!activeStory) return;
+        if (activeStory.chatHistory && activeStory.chatHistory.length > 0) {
+            setMessages(activeStory.chatHistory);
         } else {
             setMessages([
-                { role: 'model', parts: `Olá! Sou seu agente de IA. Como posso ajudar com a história "${story.title}" hoje? Você pode me pedir para alterar a sinopse, personagens, capítulos e muito mais.` }
+                { role: 'model', parts: `Olá! Sou seu agente de IA. Como posso ajudar com a história "${activeStory.title}" hoje? Você pode me pedir para alterar a sinopse, personagens, capítulos e muito mais.` }
             ]);
         }
-    }, [story.id, story.title, story.chatHistory]); // Depend on chatHistory to reflect external updates
+    }, [activeStory?.id, activeStory?.title, activeStory?.chatHistory]);
 
 
     const scrollToBottom = () => {
@@ -43,46 +44,36 @@ const AgentChatbot: React.FC<AgentChatbotProps> = ({ story, setStory, onClose })
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!input.trim() || isLoading) return;
+        if (!input.trim() || isLoading || !activeStory) return;
 
         const userMessage: Message = { role: 'user', parts: input };
-        const newMessages = [...messages, userMessage];
-        setMessages(newMessages);
+        const currentMessages = [...messages, userMessage];
+        setMessages(currentMessages);
         setInput('');
         setIsLoading(true);
 
         try {
-            const historyForApi = newMessages.filter(m => m.role === 'user' || m.role === 'model');
-            const result = await chatWithAgent(story, historyForApi, input);
+            const historyForApi = currentMessages.filter(m => m.role === 'user' || m.role === 'model');
+            const result = await chatWithAgent(activeStory, historyForApi, input);
             
             const agentMessage: Message = { role: 'model', parts: result.conversationalResponse };
             
-            setStory(prevStory => {
+            updateActiveStory(prevStory => {
                 const finalMessages = [...historyForApi, agentMessage];
                 
                 if (result.updatedStory) {
-                    const newLogEntry: ActionLogEntry = {
-                        id: `log-${Date.now()}`,
-                        timestamp: new Date().toISOString(),
-                        actor: 'agent',
-                        action: `Atualizou a história via chat: "${input}"`
-                    };
                     return {
-                        ...result.updatedStory, // Use the story object from the AI
-                        chatHistory: finalMessages, // But ensure our local chat history is the source of truth
-                        actionLog: [...prevStory.actionLog, newLogEntry] // And log the action
+                        ...result.updatedStory,
+                        chatHistory: finalMessages,
+                        actionLog: [...prevStory.actionLog, { id: `log-${Date.now()}`, timestamp: new Date().toISOString(), actor: 'agent', action: `Atualizou a história via chat: "${input}"`}]
                     };
                 } else {
-                    // If AI didn't return a new story, just update the chat history
                     return {
                         ...prevStory,
                         chatHistory: finalMessages
                     };
                 }
             });
-            // Update local component messages state after story is set
-            setMessages(prev => [...prev.filter(m => m.role === 'user'), agentMessage]);
-
 
         } catch (error) {
             const errorMessage: Message = { role: 'model', parts: (error as Error).message };
