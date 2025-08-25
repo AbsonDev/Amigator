@@ -20,12 +20,12 @@ interface DashboardProps {
   goToBookshelf: () => void;
 }
 
-const StatCard: React.FC<{ label: string; value: string | number; }> = ({ label, value }) => (
+const StatCard: React.FC<{ label: string; value: string | number; }> = React.memo(({ label, value }) => (
   <div className="bg-brand-surface p-6 rounded-lg border border-brand-secondary">
     <p className="text-sm font-medium text-brand-text-secondary">{label}</p>
     <p className="text-3xl font-bold text-brand-text-primary mt-1">{value}</p>
   </div>
-);
+));
 
 const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
   const { activeStory, updateActiveStory } = useStory();

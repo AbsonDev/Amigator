@@ -53,14 +53,17 @@ const Bookshelf: React.FC<BookshelfProps> = ({ author, stories, onStartNewStory,
 
         try {
             let textContent = '';
-            if (file.type === "text/plain") {
+            // Normalize file extension to lowercase for case-insensitive comparison
+            const fileName = file.name.toLowerCase();
+            
+            if (file.type === "text/plain" || fileName.endsWith('.txt')) {
                 textContent = await new Promise((resolve, reject) => {
                     const reader = new FileReader();
                     reader.onload = (e) => resolve(e.target?.result as string);
                     reader.onerror = (e) => reject(e);
                     reader.readAsText(file);
                 });
-            } else if (file.name.endsWith('.docx')) {
+            } else if (fileName.endsWith('.docx')) {
                 const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
                     const reader = new FileReader();
                     reader.onload = (e) => resolve(e.target?.result as ArrayBuffer);
@@ -76,8 +79,9 @@ const Bookshelf: React.FC<BookshelfProps> = ({ author, stories, onStartNewStory,
             setFileContent(textContent);
             setFileName(file.name);
         } catch (error) {
-            console.error("Error processing file:", error);
-            alert("Ocorreu um erro ao processar o arquivo. Tente novamente.");
+            const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
+            console.error("Error processing file:", errorMessage, error);
+            alert(`Erro ao processar o arquivo: ${errorMessage}. Por favor, verifique se o arquivo está no formato correto e tente novamente.`);
         }
     };
     
