@@ -378,7 +378,14 @@ export const analyzeRepetitions = async (story: Story): Promise<RepetitionIssue[
                 responseSchema: repetitionSchema,
             },
         });
-        return JSON.parse(response.text);
+
+        const textResponse = response.text;
+        if (!textResponse) {
+            console.warn("AI returned an empty response for repetition analysis. Assuming no issues found.");
+            return [];
+        }
+        
+        return JSON.parse(textResponse);
     } catch (error) {
         console.error("Error analyzing repetitions:", error);
         throw new Error("Falha ao analisar repetições. Tente novamente.");
@@ -390,11 +397,11 @@ export const importStoryFromText = async (textContent: string): Promise<Story> =
   const importedStorySchema = {
     type: Type.OBJECT,
     properties: {
-        title: { type: Type.STRING, description: "O título do livro, extraído do texto." },
+        title: { type: Type.STRING, description: "O título do livro, extraído do texto. Se não houver um explícito, crie um." },
         synopsis: { type: Type.STRING, description: "Uma sinopse curta (2-3 frases) gerada com base no conteúdo geral do texto." },
         characters: {
             type: Type.ARRAY,
-            description: "Uma lista dos personagens principais identificados no texto.",
+            description: "Uma lista dos 3-5 personagens principais identificados no texto.",
             items: {
                 type: Type.OBJECT,
                 properties: {
@@ -404,33 +411,19 @@ export const importStoryFromText = async (textContent: string): Promise<Story> =
                 },
                 required: ["name", "description", "role"]
             }
-        },
-        chapters: {
-            type: Type.ARRAY,
-            description: "Uma lista de todos os capítulos encontrados no texto.",
-            items: {
-                type: Type.OBJECT,
-                properties: {
-                    title: { type: Type.STRING, description: "O título do capítulo, extraído do texto." },
-                    content: { 
-                      type: Type.STRING, 
-                      description: "O conteúdo completo do capítulo. É crucial que esta string seja um JSON válido, com todos os caracteres especiais (como aspas duplas) devidamente escapados. Se o texto for muito longo, ele pode ser truncado, mas a string JSON deve ser terminada corretamente." 
-                    }
-                },
-                required: ["title", "content"]
-            }
         }
     },
-    required: ["title", "synopsis", "characters", "chapters"]
+    required: ["title", "synopsis", "characters"]
   };
     
   const prompt = `
-    Aja como um estruturalista literário. Analise o seguinte manuscrito completo. Sua tarefa é extrair a estrutura da história e retorná-la em um único objeto JSON válido, sem nenhum texto extra ou markdown. É CRÍTICO que todas as strings no JSON (especialmente o conteúdo dos capítulos) sejam devidamente escapadas e terminadas para formar um JSON sintaticamente perfeito.
+    Aja como um estruturalista literário. Analise o seguinte manuscrito completo. Sua tarefa é extrair os metadados da história e retorná-los em um único objeto JSON válido, sem nenhum texto extra ou markdown.
 
     1.  **Título**: Identifique o título da obra. Se não houver um título explícito, crie um apropriado com base no conteúdo.
     2.  **Sinopse**: Leia o texto inteiro e gere uma sinopse concisa de 2-3 frases.
     3.  **Personagens**: Identifique de 3 a 5 personagens principais. Para cada um, forneça seu nome, uma breve descrição com base em suas ações e diálogos, e seu papel na história (ex: Protagonista).
-    4.  **Capítulos**: Divida o texto em capítulos. Procure por indicadores de capítulo como "Capítulo 1", "CAPÍTULO UM", um título de linha única seguido por uma quebra de linha dupla, ou outras pistas estruturais. Cada item de capítulo no JSON deve conter o título do capítulo e seu conteúdo completo.
+
+    NÃO divida o texto em capítulos. O texto inteiro será tratado como um único manuscrito.
 
     Manuscrito para analisar:
     ---
@@ -448,15 +441,7 @@ export const importStoryFromText = async (textContent: string): Promise<Story> =
       },
     });
 
-    let jsonString = response.text;
-
-    // Clean up potential markdown code blocks, which can be returned by the model
-    const jsonMatch = jsonString.match(/^\s*```(?:json)?\s*([\s\S]*?)\s*```\s*$/);
-    if (jsonMatch && jsonMatch[1]) {
-        jsonString = jsonMatch[1];
-    }
-    jsonString = jsonString.trim();
-
+    let jsonString = response.text.trim();
     const storyData = JSON.parse(jsonString);
 
     const storyWithIds: Story = {
@@ -468,11 +453,14 @@ export const importStoryFromText = async (textContent: string): Promise<Story> =
         id: `char-${Date.now()}-${index}`,
         avatarUrl: `https://picsum.photos/seed/${char.name.replace(/\s/g, '')}/200`
       })),
-      chapters: storyData.chapters.map((chap: {title: string, content: string}, index: number) => ({
-        ...chap,
-        id: `chap-${Date.now()}-${index}`,
-        summary: chap.content.substring(0, 150).replace(/\n/g, ' ').trim() + '...'
-      })),
+      chapters: [
+          {
+              id: `chap-${Date.now()}-0`,
+              title: "Manuscrito Importado",
+              summary: `Manuscrito completo importado em ${new Date().toLocaleDateString()}.`,
+              content: textContent,
+          }
+      ],
       analysis: initialAnalysisState,
       chatHistory: [],
       world: [],
@@ -490,6 +478,98 @@ export const importStoryFromText = async (textContent: string): Promise<Story> =
   }
 };
 
+// --- Schemas for AI Agent Chat ---
+
+const messageSchema = {
+    type: Type.OBJECT,
+    properties: {
+        role: { type: Type.STRING },
+        parts: { type: Type.STRING }
+    },
+    required: ["role", "parts"]
+};
+
+const worldEntrySchema = {
+    type: Type.OBJECT,
+    properties: {
+        id: { type: Type.STRING },
+        name: { type: Type.STRING },
+        category: { type: Type.STRING },
+        description: { type: Type.STRING }
+    },
+    required: ["id", "name", "category", "description"]
+};
+
+const versionSchema = {
+    type: Type.OBJECT,
+    properties: {
+        id: { type: Type.STRING },
+        name: { type: Type.STRING },
+        createdAt: { type: Type.STRING },
+        storyState: { 
+            type: Type.OBJECT, 
+            description: "A snapshot of the story state. Only include the id.",
+            properties: { id: { type: Type.STRING } }
+        }
+    },
+    required: ["id", "name", "createdAt", "storyState"]
+};
+
+const actionLogEntrySchema = {
+    type: Type.OBJECT,
+    properties: {
+        id: { type: Type.STRING },
+        timestamp: { type: Type.STRING },
+        actor: { type: Type.STRING },
+        action: { type: Type.STRING }
+    },
+    required: ["id", "timestamp", "actor", "action"]
+};
+
+const scriptIssueSchema = {
+    type: Type.OBJECT,
+    properties: {
+        description: { type: Type.STRING },
+        involvedChapters: { type: Type.ARRAY, items: { type: Type.STRING } },
+        suggestion: { type: Type.STRING }
+    },
+    required: ["description", "involvedChapters", "suggestion"]
+};
+
+const repetitionIssueSchema = {
+    type: Type.OBJECT,
+    properties: {
+        text: { type: Type.STRING },
+        count: { type: Type.NUMBER },
+        locations: { type: Type.ARRAY, items: { type: Type.STRING } }
+    },
+    required: ["text", "count", "locations"]
+};
+
+const storyAnalysisSchema = {
+    type: Type.OBJECT,
+    properties: {
+        scriptIssues: {
+            type: Type.OBJECT,
+            properties: {
+                results: { type: Type.ARRAY, items: scriptIssueSchema },
+                ignored: { type: Type.ARRAY, items: { type: Type.STRING } },
+                lastAnalyzed: { type: Type.STRING, nullable: true }
+            },
+            required: ["results", "ignored", "lastAnalyzed"]
+        },
+        repetitions: {
+            type: Type.OBJECT,
+            properties: {
+                results: { type: Type.ARRAY, items: repetitionIssueSchema },
+                ignored: { type: Type.ARRAY, items: { type: Type.STRING } },
+                lastAnalyzed: { type: Type.STRING, nullable: true }
+            },
+            required: ["results", "ignored", "lastAnalyzed"]
+        }
+    },
+    required: ["scriptIssues", "repetitions"]
+};
 
 const agentResponseSchema = {
     type: Type.OBJECT,
@@ -505,11 +585,12 @@ const agentResponseSchema = {
             properties: {
               id: { type: Type.STRING },
               ...storySchema.properties,
-              analysis: { type: Type.OBJECT, properties: {}, description: "A estrutura de análise da história." },
-              chatHistory: { type: Type.ARRAY, items: { type: Type.OBJECT }, description: "O histórico do chat." },
-              world: { type: Type.ARRAY, items: { type: Type.OBJECT }, description: "A enciclopédia do mundo." },
-              versions: { type: Type.ARRAY, items: { type: Type.OBJECT }, description: "As versões salvas da história." },
-              actionLog: { type: Type.ARRAY, items: { type: Type.OBJECT }, description: "O log de atividades." }
+              analysis: storyAnalysisSchema,
+              chatHistory: { type: Type.ARRAY, items: messageSchema },
+              world: { type: Type.ARRAY, items: worldEntrySchema },
+              versions: { type: Type.ARRAY, items: versionSchema },
+              actionLog: { type: Type.ARRAY, items: actionLogEntrySchema },
+              autosaveEnabled: { type: Type.BOOLEAN }
             }
         }
     },
@@ -595,7 +676,7 @@ export const generateInspiration = async (type: 'what-if' | 'plot-twist' | 'name
 };
 
 
-const worldEntrySchema = {
+const worldEntrySchemaForAnalysis = {
     type: Type.ARRAY,
     items: {
         type: Type.OBJECT,
@@ -627,7 +708,7 @@ export const analyzeTextForWorldEntries = async (text: string): Promise<Omit<Wor
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
-                responseSchema: worldEntrySchema,
+                responseSchema: worldEntrySchemaForAnalysis,
             },
         });
         const results = JSON.parse(response.text);

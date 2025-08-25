@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import useLocalStorage from './hooks/useLocalStorage';
 import type { Author } from './types';
@@ -8,9 +9,12 @@ import StorySetup from './components/StorySetup';
 import Dashboard from './components/Dashboard';
 import LoadingSpinner from './components/LoadingSpinner';
 import Bookshelf from './components/Bookshelf';
+import LandingPage from './components/LandingPage';
 
 const App: React.FC = () => {
   const [author, setAuthor] = useLocalStorage<Author | null>('author-profile', null);
+  const [hasVisited, setHasVisited] = useLocalStorage<boolean>('has-visited-writer-app', false);
+  
   const {
     stories,
     activeStory,
@@ -26,6 +30,14 @@ const App: React.FC = () => {
   const handleProfileCreate = (newAuthor: Author) => {
     setAuthor(newAuthor);
   };
+  
+  const handleStart = () => {
+    setHasVisited(true);
+  };
+
+  if (!hasVisited) {
+    return <LandingPage onStart={handleStart} />;
+  }
 
   if (isLoading) {
     return <LoadingSpinner />;

@@ -1,5 +1,5 @@
-
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import debounce from 'lodash.debounce';
 
 function useLocalStorage<T,>(key: string, initialValue: T): [T, React.Dispatch<React.SetStateAction<T>>] {
   const [storedValue, setStoredValue] = useState<T>(() => {
@@ -15,29 +15,31 @@ function useLocalStorage<T,>(key: string, initialValue: T): [T, React.Dispatch<R
     }
   });
 
-  // The main setValue function for components to use, which updates state instantly
+  const debouncedSetItem = useMemo(
+    () =>
+      debounce((valueToStore: T) => {
+        if (typeof window !== 'undefined') {
+          try {
+            window.localStorage.setItem(key, JSON.stringify(valueToStore));
+          } catch (error) {
+            console.error(error);
+          }
+        }
+      }, 1000), // 1 second debounce delay
+    [key]
+  );
+
+  useEffect(() => {
+    debouncedSetItem(storedValue);
+    return () => {
+      debouncedSetItem.cancel();
+    };
+  }, [storedValue, debouncedSetItem]);
+  
   const setValue: React.Dispatch<React.SetStateAction<T>> = (value) => {
-      setStoredValue(value);
+    setStoredValue(value);
   };
 
-  // Debounced effect to write to localStorage
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      if (typeof window !== 'undefined') {
-        try {
-          window.localStorage.setItem(key, JSON.stringify(storedValue));
-        } catch (error) {
-          console.error(error);
-        }
-      }
-    }, 1000); // Debounce delay of 1 second
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [key, storedValue]);
-
-  // Effect to sync changes from other tabs
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === key && e.newValue) {

@@ -20,6 +20,14 @@
         -webkit-box-orient: vertical;
         -webkit-line-clamp: 3;
       }
+      @keyframes typing {
+        from { width: 0 }
+        to { width: 100% }
+      }
+      @keyframes blink-caret {
+        from, to { border-color: transparent }
+        50% { border-color: #8a4fff; } /* brand-primary color */
+      }
     </style>
     <script>
       tailwind.config = {
@@ -51,12 +59,14 @@
     "mammoth": "https://esm.sh/mammoth@1.7.2",
     "jspdf": "https://esm.sh/jspdf@2.5.1",
     "docx": "https://esm.sh/docx@8.5.0",
-    "file-saver": "https://esm.sh/file-saver@^2.0.5"
+    "file-saver": "https://esm.sh/file-saver@^2.0.5",
+    "lodash.debounce": "https://esm.sh/lodash.debounce@^4.0.8"
   }
 }
 </script>
 </head>
   <body class="bg-brand-background">
     <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

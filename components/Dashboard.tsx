@@ -1,14 +1,12 @@
-
 import React, { useState, useMemo } from 'react';
 import type { Author, Chapter } from '../types';
 import { AppView } from '../types';
-import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, AgentIcon, GlobeAltIcon, ArrowDownTrayIcon, ClockIcon } from './Icons';
+import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, AgentIcon, GlobeAltIcon, ArrowDownTrayIcon, ClockIcon, ChevronDoubleLeftIcon } from './Icons';
 import CharacterEditor from './CharacterEditor';
 import ChapterOrganizer from './ChapterOrganizer';
 import ChapterEditor from './ChapterEditor';
 import AgentChatbot from './AgentChatbot';
 import WorldBuilder from './WorldBuilder';
-import IdeaHub from './IdeaHub';
 import HistoryViewer from './HistoryViewer';
 import AuthorTools from './AuthorTools';
 import { useStory } from '../context/StoryContext';
@@ -33,8 +31,8 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
   const { activeStory, updateActiveStory } = useStory();
   const [currentView, setCurrentView] = useState<AppView>(AppView.OVERVIEW);
   const [editingChapter, setEditingChapter] = useState<Chapter | null>(null);
-  
-  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isChatCollapsed, setIsChatCollapsed] = useState(true);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   const wordCount = useMemo(() => {
@@ -157,10 +155,11 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
     return (
         <button
             onClick={() => { setEditingChapter(null); setCurrentView(view); }}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors w-full ${isActive ? 'bg-brand-primary text-white' : 'text-brand-text-secondary hover:bg-brand-surface hover:text-brand-text-primary'}`}
+            title={isSidebarCollapsed ? label : undefined}
+            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors w-full ${isSidebarCollapsed ? 'justify-center' : ''} ${isActive ? 'bg-brand-primary text-white' : 'text-brand-text-secondary hover:bg-brand-surface hover:text-brand-text-primary'}`}
         >
             {icon}
-            <span className="flex-1 text-left">{label}</span>
+            {!isSidebarCollapsed && <span className="flex-1 text-left">{label}</span>}
         </button>
     );
   };
@@ -169,44 +168,40 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
   return (
     <>
         <div className="flex h-screen bg-brand-background text-brand-text-primary">
-            <aside className="w-64 bg-brand-surface/50 border-r border-brand-secondary flex flex-col p-4">
-                <div className="flex items-center gap-2 p-2 mb-6">
-                    <PencilIcon className="w-8 h-8 text-brand-primary" />
-                    <span className="font-bold text-xl">Escritor IA</span>
+            <aside className={`bg-brand-surface/50 border-r border-brand-secondary flex flex-col p-4 transition-all duration-300 ease-in-out ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
+                <div className={`flex items-center gap-2 p-2 mb-6 ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+                    <PencilIcon className="w-8 h-8 text-brand-primary flex-shrink-0" />
+                    {!isSidebarCollapsed && <span className="font-bold text-xl">Escritor IA</span>}
                 </div>
                 <nav className="flex flex-col gap-2">
-                    <NavItem icon={<HomeIcon className="w-5 h-5"/>} label="Painel de Controle" view={AppView.OVERVIEW} />
-                    <NavItem icon={<BookOpenIcon className="w-5 h-5"/>} label="Capítulos" view={AppView.CHAPTERS} />
-                    <NavItem icon={<UsersIcon className="w-5 h-5"/>} label="Personagens" view={AppView.CHARACTERS} />
-                    <NavItem icon={<GlobeAltIcon className="w-5 h-5"/>} label="Mundo" view={AppView.WORLD} />
-                    <NavItem icon={<ClockIcon className="w-5 h-5"/>} label="Versionamento & Histórico" view={AppView.HISTORY} />
+                    <NavItem icon={<HomeIcon className="w-5 h-5 flex-shrink-0"/>} label="Painel de Controle" view={AppView.OVERVIEW} />
+                    <NavItem icon={<BookOpenIcon className="w-5 h-5 flex-shrink-0"/>} label="Capítulos" view={AppView.CHAPTERS} />
+                    <NavItem icon={<UsersIcon className="w-5 h-5 flex-shrink-0"/>} label="Personagens" view={AppView.CHARACTERS} />
+                    <NavItem icon={<GlobeAltIcon className="w-5 h-5 flex-shrink-0"/>} label="Mundo" view={AppView.WORLD} />
+                    <NavItem icon={<ClockIcon className="w-5 h-5 flex-shrink-0"/>} label="Versionamento & Histórico" view={AppView.HISTORY} />
                 </nav>
-                <div className="mt-auto">
-                    <div className="border-t border-brand-secondary pt-4 text-center">
+                <div className="mt-auto space-y-2">
+                    <div className={`border-t border-brand-secondary pt-4 text-center ${isSidebarCollapsed ? 'hidden' : ''}`}>
                         <p className="text-sm font-semibold text-brand-text-primary">{author.name}</p>
                         <button onClick={goToBookshelf} className="text-xs text-brand-text-secondary hover:text-brand-primary transition-colors mt-2">
                           Voltar para Estante
                         </button>
                     </div>
+                    <div className={`${isSidebarCollapsed ? 'mt-2' : 'border-t border-brand-secondary pt-2'}`}>
+                      <button onClick={() => setIsSidebarCollapsed(p => !p)} title={isSidebarCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-brand-text-secondary hover:bg-brand-surface hover:text-brand-text-primary ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+                          <ChevronDoubleLeftIcon className={`w-5 h-5 flex-shrink-0 transition-transform duration-300 ${isSidebarCollapsed ? 'rotate-180' : ''}`} />
+                          {!isSidebarCollapsed && <span className="flex-1 text-left">Recolher</span>}
+                      </button>
+                    </div>
                 </div>
             </aside>
 
-            <main className="flex-1 overflow-y-auto">
+            <main className="flex-1 overflow-y-auto transition-all duration-300 ease-in-out">
                 {renderContent()}
             </main>
+            
+            <AgentChatbot isCollapsed={isChatCollapsed} onToggle={() => setIsChatCollapsed(p => !p)} />
         </div>
-        
-        <button 
-            onClick={() => setIsChatbotOpen(prev => !prev)}
-            className="fixed bottom-6 right-6 bg-brand-primary text-white p-4 rounded-full shadow-lg hover:bg-opacity-90 transform hover:scale-110 transition-all z-40"
-            aria-label="Abrir Agente de IA"
-        >
-            <AgentIcon className="w-8 h-8"/>
-        </button>
-
-        {isChatbotOpen && (
-            <AgentChatbot onClose={() => setIsChatbotOpen(false)} />
-        )}
         
         {isExportModalOpen && (
              <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50" onClick={() => setIsExportModalOpen(false)}>
