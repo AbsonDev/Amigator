@@ -28,6 +28,13 @@
         from, to { border-color: transparent }
         50% { border-color: #8a4fff; } /* brand-primary color */
       }
+      .prose-chat ul { list-style-position: inside; padding-left: 1rem; }
+      .prose-chat ol { list-style-position: inside; padding-left: 1rem; list-style-type: decimal; }
+      .prose-chat li { margin-bottom: 0.25rem; }
+      .prose-chat strong { font-weight: bold; }
+      .prose-chat em { font-style: italic; }
+      .prose-chat p { margin-bottom: 0.5rem; }
+      .prose-chat p:last-child { margin-bottom: 0; }
     </style>
     <script>
       tailwind.config = {
@@ -60,7 +67,8 @@
     "jspdf": "https://esm.sh/jspdf@2.5.1",
     "docx": "https://esm.sh/docx@8.5.0",
     "file-saver": "https://esm.sh/file-saver@^2.0.5",
-    "lodash.debounce": "https://esm.sh/lodash.debounce@^4.0.8"
+    "lodash.debounce": "https://esm.sh/lodash.debounce@^4.0.8",
+    "marked": "https://esm.sh/marked@^13.0.2"
   }
 }
 </script>

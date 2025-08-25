@@ -3,6 +3,7 @@ import type { Message } from '../types';
 import { chatWithAgent } from '../services/geminiService';
 import { AgentIcon, ChevronDoubleRightIcon } from './Icons';
 import { useStory } from '../context/StoryContext';
+import { marked } from 'marked';
 
 interface AgentChatbotProps {
     isCollapsed: boolean;
@@ -45,6 +46,16 @@ const AgentChatbot: React.FC<AgentChatbotProps> = ({ isCollapsed, onToggle }) =>
         scrollToBottom();
       }
     }, [messages, isCollapsed]);
+    
+    const createMarkup = (markdownText: string) => {
+      const html = marked.parse(markdownText, {
+        gfm: true,
+        breaks: true,
+        mangle: false,
+        headerIds: false,
+      });
+      return { __html: html as string };
+    };
 
     const handleSend = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -118,7 +129,7 @@ const AgentChatbot: React.FC<AgentChatbotProps> = ({ isCollapsed, onToggle }) =>
                         {messages.map((msg, index) => (
                             <div key={index} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 <div className={`max-w-[85%] p-3 rounded-2xl ${msg.role === 'user' ? 'bg-brand-primary text-white rounded-br-lg' : 'bg-brand-secondary text-brand-text-primary rounded-bl-lg'}`}>
-                                    <p className="text-sm" dangerouslySetInnerHTML={{ __html: msg.parts.replace(/\n/g, '<br />') }}></p>
+                                    <div className="prose-chat text-sm" dangerouslySetInnerHTML={createMarkup(msg.parts)}></div>
                                 </div>
                             </div>
                         ))}

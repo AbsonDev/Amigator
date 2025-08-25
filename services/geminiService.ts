@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory } from '../types';
+import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory, StoryContent, Relationship } from '../types';
 
 if (!process.env.API_KEY) {
   throw new Error("API_KEY environment variable not set");
@@ -7,63 +7,56 @@ if (!process.env.API_KEY) {
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
-const storySchema = {
-  type: Type.OBJECT,
-  properties: {
-    title: {
-      type: Type.STRING,
-      description: "Um título criativo e cativante para a história."
-    },
-    synopsis: {
-      type: Type.STRING,
-      description: "Uma sinopse curta (2-3 frases) da história."
-    },
-    characters: {
-      type: Type.ARRAY,
-      description: "Uma lista de 3 a 5 personagens principais.",
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          id: { type: Type.STRING, description: "O ID único do personagem, que não deve ser alterado." },
-          name: {
-            type: Type.STRING,
-            description: "Nome completo do personagem."
-          },
-          description: {
-            type: Type.STRING,
-            description: "Uma breve descrição da aparência, personalidade e motivações do personagem."
-          },
-          role: {
-            type: Type.STRING,
-            description: "O papel do personagem na história (ex: Protagonista, Antagonista, Mentor, Alívio Cômico)."
-          },
-          avatarUrl: { type: Type.STRING, description: "O URL do avatar do personagem, que não deve ser alterado." },
-        },
-        required: ["id", "name", "description", "role", "avatarUrl"]
-      }
-    },
-    chapters: {
-      type: Type.ARRAY,
-      description: "Uma lista de 5 a 10 capítulos iniciais que estruturam a história.",
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          id: { type: Type.STRING, description: "O ID único do capítulo, que não deve ser alterado." },
-          title: {
-            type: Type.STRING,
-            description: "O título do capítulo."
-          },
-          summary: {
-            type: Type.STRING,
-            description: "Um resumo de uma frase dos principais eventos do capítulo."
-          },
-          content: { type: Type.STRING, description: "O conteúdo completo do capítulo." }
-        },
-        required: ["id", "title", "summary", "content"]
-      }
-    }
-  },
-  required: ["title", "synopsis", "characters", "chapters"]
+export const extractCharacterAppearance = async (fullText: string, characterName: string): Promise<string> => {
+  const prompt = `
+    Analise o texto completo a seguir e extraia uma descrição consolidada da aparência física do personagem "${characterName}".
+    Concentre-se em detalhes visuais como cabelo, olhos, altura, constituição, roupas e características distintivas.
+    Retorne apenas a descrição da aparência, em uma ou duas frases. Se nenhuma descrição física for encontrada, retorne uma estimativa com base no contexto.
+
+    Texto:
+    ---
+    ${fullText}
+    ---
+  `;
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+    });
+    return response.text.trim();
+  } catch (error) {
+    console.error(`Error extracting appearance for ${characterName}:`, error);
+    return "Nenhuma descrição física específica encontrada.";
+  }
+};
+
+
+export const generateCharacterAvatar = async (appearance: string, genre: string, style: string): Promise<string> => {
+  const prompt = `
+    Crie um retrato de personagem, focado no rosto e ombros, no estilo de ${style}.
+    Gênero da história: ${genre}.
+    Descrição da aparência física do personagem: ${appearance}.
+    O retrato deve ser artístico, evocativo e fiel à descrição. Sem texto na imagem.
+  `;
+
+  try {
+    const response = await ai.models.generateImages({
+      model: 'imagen-3.0-generate-002',
+      prompt: prompt,
+      config: {
+        numberOfImages: 1,
+        outputMimeType: 'image/png',
+        aspectRatio: '1:1',
+      },
+    });
+
+    const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
+    return `data:image/png;base64,${base64ImageBytes}`;
+  } catch (error) {
+    console.error("Error generating character avatar:", error);
+    // Return a fallback image on error
+    return `https://picsum.photos/seed/${appearance.replace(/\s/g, '').slice(0, 10)}/200`;
+  }
 };
 
 const initialAnalysisState = {
@@ -78,7 +71,7 @@ export const generateStoryStructure = async (genre: string, theme: string, userP
     Tema: ${theme}
     Prompt do Usuário: ${userPrompt}
 
-    Crie um título, uma sinopse, uma lista de personagens e um esboço de capítulos.
+    Crie um título, uma sinopse, uma lista de personagens e um esboço de capítulos com conteúdo inicial.
     A história deve ser coesa, criativa e seguir as convenções do gênero especificado.
   `;
   
@@ -100,7 +93,7 @@ export const generateStoryStructure = async (genre: string, theme: string, userP
             type: Type.OBJECT,
             properties: {
               name: { type: Type.STRING, description: "Nome completo do personagem." },
-              description: { type: Type.STRING, description: "Uma breve descrição da aparência, personalidade e motivações do personagem." },
+              description: { type: Type.STRING, description: "Uma breve descrição da personalidade e motivações do personagem. NÃO inclua aparência física aqui." },
               role: { type: Type.STRING, description: "O papel do personagem na história (ex: Protagonista, Antagonista, Mentor, Alívio Cômico)." },
             },
             required: ["name", "description", "role"]
@@ -114,8 +107,9 @@ export const generateStoryStructure = async (genre: string, theme: string, userP
             properties: {
               title: { type: Type.STRING, description: "O título do capítulo." },
               summary: { type: Type.STRING, description: "Um resumo de uma frase dos principais eventos do capítulo." },
+              content: { type: Type.STRING, description: "O conteúdo completo do capítulo inicial, que deve introduzir os personagens e a trama."}
             },
-            required: ["title", "summary"]
+            required: ["title", "summary", "content"]
           }
         }
       },
@@ -133,20 +127,33 @@ export const generateStoryStructure = async (genre: string, theme: string, userP
     });
 
     const storyData = JSON.parse(response.text);
+    const fullText = storyData.chapters.map((c: Chapter) => c.content).join('\n\n');
+
+    const charactersWithDetails = await Promise.all(
+        storyData.characters.map(async (char: Omit<Character, 'id' | 'avatarUrl' | 'appearance' | 'narrativeArc' | 'relationships'>, index: number) => {
+            const appearance = await extractCharacterAppearance(fullText, char.name);
+            const avatarUrl = await generateCharacterAvatar(appearance, genre, "Arte Digital");
+            return {
+                ...char,
+                id: `char-${Date.now()}-${index}`,
+                appearance,
+                avatarUrl,
+                narrativeArc: "",
+                relationships: [],
+            };
+        })
+    );
     
     // Augment data with IDs and placeholders
     const storyWithIds: Story = {
       id: `story-${Date.now()}`,
-      ...storyData,
-      characters: storyData.characters.map((char: Omit<Character, 'id' | 'avatarUrl'>, index: number) => ({
-        ...char,
-        id: `char-${Date.now()}-${index}`,
-        avatarUrl: `https://picsum.photos/seed/${char.name.replace(/\s/g, '')}/200`
-      })),
-      chapters: storyData.chapters.map((chap: Omit<Chapter, 'id' | 'content'>, index: number) => ({
+      genre,
+      title: storyData.title,
+      synopsis: storyData.synopsis,
+      characters: charactersWithDetails,
+      chapters: storyData.chapters.map((chap: Omit<Chapter, 'id'>, index: number) => ({
         ...chap,
         id: `chap-${Date.now()}-${index}`,
-        content: `Este é o início do capítulo "${chap.title}".\n\n${chap.summary}\n\nContinue a escrever a partir daqui...`
       })),
       analysis: initialAnalysisState,
       chatHistory: [],
@@ -166,6 +173,7 @@ export const generateStoryStructure = async (genre: string, theme: string, userP
   }
 };
 
+// ... (rest of the functions: continueWriting, modifyText, getBetaReaderFeedback, etc. remain the same)
 export const continueWriting = async (context: string): Promise<string> => {
   const prompt = `Você é um assistente de escrita criativa. Continue a seguinte história a partir do ponto onde ela parou, adicionando um ou dois parágrafos. Mantenha o tom, o estilo e os personagens consistentes.
 
@@ -399,6 +407,7 @@ export const importStoryFromText = async (textContent: string): Promise<Story> =
     properties: {
         title: { type: Type.STRING, description: "O título do livro, extraído do texto. Se não houver um explícito, crie um." },
         synopsis: { type: Type.STRING, description: "Uma sinopse curta (2-3 frases) gerada com base no conteúdo geral do texto." },
+        genre: { type: Type.STRING, description: "O gênero principal do livro (ex: Fantasia, Ficção Científica, Mistério), inferido do texto." },
         characters: {
             type: Type.ARRAY,
             description: "Uma lista dos 3-5 personagens principais identificados no texto.",
@@ -406,14 +415,14 @@ export const importStoryFromText = async (textContent: string): Promise<Story> =
                 type: Type.OBJECT,
                 properties: {
                     name: { type: Type.STRING, description: "Nome completo do personagem." },
-                    description: { type: Type.STRING, description: "Uma breve descrição do personagem com base em suas ações e diálogos no texto." },
+                    description: { type: Type.STRING, description: "Uma breve descrição da personalidade e motivações do personagem com base em suas ações e diálogos no texto." },
                     role: { type: Type.STRING, description: "O papel do personagem na história (ex: Protagonista, Antagonista)." }
                 },
                 required: ["name", "description", "role"]
             }
         }
     },
-    required: ["title", "synopsis", "characters"]
+    required: ["title", "synopsis", "genre", "characters"]
   };
     
   const prompt = `
@@ -421,7 +430,8 @@ export const importStoryFromText = async (textContent: string): Promise<Story> =
 
     1.  **Título**: Identifique o título da obra. Se não houver um título explícito, crie um apropriado com base no conteúdo.
     2.  **Sinopse**: Leia o texto inteiro e gere uma sinopse concisa de 2-3 frases.
-    3.  **Personagens**: Identifique de 3 a 5 personagens principais. Para cada um, forneça seu nome, uma breve descrição com base em suas ações e diálogos, e seu papel na história (ex: Protagonista).
+    3.  **Gênero**: Leia o texto e infira o gênero principal (ex: Fantasia, Ficção Científica).
+    4.  **Personagens**: Identifique de 3 a 5 personagens principais. Para cada um, forneça seu nome, uma breve descrição de personalidade e motivações com base em suas ações, e seu papel na história.
 
     NÃO divida o texto em capítulos. O texto inteiro será tratado como um único manuscrito.
 
@@ -444,15 +454,27 @@ export const importStoryFromText = async (textContent: string): Promise<Story> =
     let jsonString = response.text.trim();
     const storyData = JSON.parse(jsonString);
 
+    const charactersWithDetails = await Promise.all(
+        storyData.characters.map(async (char: Omit<Character, 'id' | 'avatarUrl' | 'appearance' | 'narrativeArc' | 'relationships'>, index: number) => {
+            const appearance = await extractCharacterAppearance(textContent, char.name);
+            const avatarUrl = await generateCharacterAvatar(appearance, storyData.genre, "Arte Digital");
+            return {
+                ...char,
+                id: `char-${Date.now()}-${index}`,
+                appearance,
+                avatarUrl,
+                narrativeArc: "",
+                relationships: [],
+            };
+        })
+    );
+
     const storyWithIds: Story = {
       id: `story-${Date.now()}`,
       title: storyData.title,
       synopsis: storyData.synopsis,
-      characters: storyData.characters.map((char: Omit<Character, 'id' | 'avatarUrl'>, index: number) => ({
-        ...char,
-        id: `char-${Date.now()}-${index}`,
-        avatarUrl: `https://picsum.photos/seed/${char.name.replace(/\s/g, '')}/200`
-      })),
+      genre: storyData.genre,
+      characters: charactersWithDetails,
       chapters: [
           {
               id: `chap-${Date.now()}-0`,
@@ -479,96 +501,15 @@ export const importStoryFromText = async (textContent: string): Promise<Story> =
 };
 
 // --- Schemas for AI Agent Chat ---
-
-const messageSchema = {
-    type: Type.OBJECT,
-    properties: {
-        role: { type: Type.STRING },
-        parts: { type: Type.STRING }
-    },
-    required: ["role", "parts"]
-};
-
-const worldEntrySchema = {
-    type: Type.OBJECT,
-    properties: {
-        id: { type: Type.STRING },
-        name: { type: Type.STRING },
-        category: { type: Type.STRING },
-        description: { type: Type.STRING }
-    },
-    required: ["id", "name", "category", "description"]
-};
-
-const versionSchema = {
-    type: Type.OBJECT,
-    properties: {
-        id: { type: Type.STRING },
-        name: { type: Type.STRING },
-        createdAt: { type: Type.STRING },
-        storyState: { 
-            type: Type.OBJECT, 
-            description: "A snapshot of the story state. Only include the id.",
-            properties: { id: { type: Type.STRING } }
-        }
-    },
-    required: ["id", "name", "createdAt", "storyState"]
-};
-
-const actionLogEntrySchema = {
-    type: Type.OBJECT,
-    properties: {
-        id: { type: Type.STRING },
-        timestamp: { type: Type.STRING },
-        actor: { type: Type.STRING },
-        action: { type: Type.STRING }
-    },
-    required: ["id", "timestamp", "actor", "action"]
-};
-
-const scriptIssueSchema = {
-    type: Type.OBJECT,
-    properties: {
-        description: { type: Type.STRING },
-        involvedChapters: { type: Type.ARRAY, items: { type: Type.STRING } },
-        suggestion: { type: Type.STRING }
-    },
-    required: ["description", "involvedChapters", "suggestion"]
-};
-
-const repetitionIssueSchema = {
-    type: Type.OBJECT,
-    properties: {
-        text: { type: Type.STRING },
-        count: { type: Type.NUMBER },
-        locations: { type: Type.ARRAY, items: { type: Type.STRING } }
-    },
-    required: ["text", "count", "locations"]
-};
-
-const storyAnalysisSchema = {
-    type: Type.OBJECT,
-    properties: {
-        scriptIssues: {
-            type: Type.OBJECT,
-            properties: {
-                results: { type: Type.ARRAY, items: scriptIssueSchema },
-                ignored: { type: Type.ARRAY, items: { type: Type.STRING } },
-                lastAnalyzed: { type: Type.STRING, nullable: true }
-            },
-            required: ["results", "ignored", "lastAnalyzed"]
-        },
-        repetitions: {
-            type: Type.OBJECT,
-            properties: {
-                results: { type: Type.ARRAY, items: repetitionIssueSchema },
-                ignored: { type: Type.ARRAY, items: { type: Type.STRING } },
-                lastAnalyzed: { type: Type.STRING, nullable: true }
-            },
-            required: ["results", "ignored", "lastAnalyzed"]
-        }
-    },
-    required: ["scriptIssues", "repetitions"]
+const summarizedStoryForAgent = (story: Story): Partial<Story> => {
+    // Return a version of the story object that's safe to send to the AI,
+    // avoiding excessively large fields.
+    return {
+        ...story,
+        // Omit fields that are too large or irrelevant for the agent's decision making
+        chapters: story.chapters.map(({ id, title, summary }) => ({ id, title, summary, content: '' })), // Send summaries only
+        versions: [], // Omit huge version history
+    };
 };
 
 const agentResponseSchema = {
@@ -576,21 +517,19 @@ const agentResponseSchema = {
     properties: {
         conversationalResponse: { 
             type: Type.STRING, 
-            description: "Sua resposta amigável e conversacional para o usuário." 
+            description: "Sua resposta amigável e conversacional para o usuário. Use formatação Markdown e emojis para clareza." 
         },
         updatedStory: {
-            ...storySchema,
+            type: Type.OBJECT,
             nullable: true,
             description: "O objeto da história completo e atualizado se uma edição foi realizada. Caso contrário, nulo.",
             properties: {
-              id: { type: Type.STRING },
-              ...storySchema.properties,
-              analysis: storyAnalysisSchema,
-              chatHistory: { type: Type.ARRAY, items: messageSchema },
-              world: { type: Type.ARRAY, items: worldEntrySchema },
-              versions: { type: Type.ARRAY, items: versionSchema },
-              actionLog: { type: Type.ARRAY, items: actionLogEntrySchema },
-              autosaveEnabled: { type: Type.BOOLEAN }
+                title: { type: Type.STRING },
+                genre: { type: Type.STRING },
+                synopsis: { type: Type.STRING },
+                characters: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {id: {type: Type.STRING}, name: {type: Type.STRING}, description: {type: Type.STRING}, appearance: {type: Type.STRING}, role: {type: Type.STRING}, avatarUrl: {type: Type.STRING}, narrativeArc: {type: Type.STRING}, relationships: {type: Type.ARRAY, items: {type: Type.OBJECT, properties: {characterId: {type: Type.STRING}, type: {type: Type.STRING}, description: {type: Type.STRING}}}}}}}},
+                chapters: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {id: {type: Type.STRING}, title: {type: Type.STRING}, summary: {type: Type.STRING}, content: {type: Type.STRING}}}},
+                world: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: {id: {type: Type.STRING}, name: {type: Type.STRING}, category: {type: Type.STRING}, description: {type: Type.STRING}}}}
             }
         }
     },
@@ -601,7 +540,8 @@ const agentResponseSchema = {
 export const chatWithAgent = async (story: Story, conversation: Message[], newMessage: string): Promise<{conversationalResponse: string; updatedStory: Story | null}> => {
     
     const prompt = `
-        Você é um agente literário de IA, um parceiro de escrita para um autor. Você é prestativo, encorajador e muito capaz.
+        Você é um agente literário de IA, um parceiro de escrita para um autor. Você é prestativo, encorajador e muito capaz. Seja amigável e expressivo. Use formatação Markdown (listas, negrito, etc.) e emojis apropriados (como ✨, 📚, 🤔) para tornar suas respostas mais claras e engajantes.
+        
         Converse com o autor sobre sua história. Se ele pedir para você fazer uma alteração na história (por exemplo, "mude a sinopse", "reescreva o capítulo 2", "torne este personagem mais sombrio"), você deve:
         1. Realizar a alteração solicitada no objeto da história fornecido.
         2. Retornar a estrutura JSON completa da história modificada na chave 'updatedStory'.
@@ -618,7 +558,7 @@ export const chatWithAgent = async (story: Story, conversation: Message[], newMe
         ${newMessage}
 
         Objeto da história atual para referência e modificação:
-        ${JSON.stringify(story)}
+        ${JSON.stringify(summarizedStoryForAgent(story))}
     `;
 
     try {
@@ -633,9 +573,15 @@ export const chatWithAgent = async (story: Story, conversation: Message[], newMe
 
         const result = JSON.parse(response.text);
         
-        if (result.updatedStory && (!result.updatedStory.id || !result.updatedStory.chapters)) {
-             console.warn("Agent returned an invalid story object. Discarding update.", result.updatedStory);
-             result.updatedStory = null;
+        if (result.updatedStory) {
+            // Re-integrate the full story data that was summarized
+            return {
+                ...result,
+                updatedStory: {
+                    ...story, // Start with the original full story
+                    ...result.updatedStory // Overwrite with AI's changes
+                }
+            };
         }
 
         return result;
@@ -717,5 +663,62 @@ export const analyzeTextForWorldEntries = async (text: string): Promise<Omit<Wor
     } catch (error) {
         console.error("Error analyzing text for world entries:", error);
         throw new Error("Falha ao analisar o texto para entradas do mundo. Tente novamente.");
+    }
+};
+
+const relationshipsSchema = {
+    type: Type.ARRAY,
+    description: "Uma lista de relacionamentos sugeridos entre o personagem principal e outros.",
+    items: {
+        type: Type.OBJECT,
+        properties: {
+            characterId: { type: Type.STRING, description: "O ID do outro personagem no relacionamento." },
+            type: { type: Type.STRING, description: "O tipo de relacionamento (ex: Aliado, Inimigo, Parente, Interesse Amoroso, Mentor)." },
+            description: { type: Type.STRING, description: "Uma breve descrição justificando o relacionamento com base no texto." },
+        },
+        required: ["characterId", "type", "description"]
+    }
+};
+
+export const suggestCharacterRelationships = async (story: Story, characterId: string): Promise<Relationship[]> => {
+    const mainCharacter = story.characters.find(c => c.id === characterId);
+    if (!mainCharacter) return [];
+
+    const otherCharacters = story.characters.filter(c => c.id !== characterId);
+    const fullText = story.chapters.map(c => c.content).join("\n\n");
+
+    const prompt = `
+        Aja como um analista de personagens. Analise o texto da história fornecida e as interações entre "${mainCharacter.name}" e os outros personagens.
+        Sugira relacionamentos significativos entre "${mainCharacter.name}" e os outros personagens listados.
+        Baseie suas sugestões em diálogos, ações e subtexto. Se nenhum relacionamento claro for encontrado, retorne uma matriz vazia.
+        
+        Personagem Principal:
+        - ${mainCharacter.name} (ID: ${mainCharacter.id})
+        
+        Outros Personagens (com IDs):
+        ${otherCharacters.map(c => `- ${c.name} (ID: ${c.id})`).join("\n")}
+        
+        Texto da História:
+        ---
+        ${fullText}
+        ---
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: relationshipsSchema,
+            },
+        });
+        const results = JSON.parse(response.text);
+        // Validate that the returned character IDs exist
+        const validCharacterIds = new Set(otherCharacters.map(c => c.id));
+        return results.filter((r: Relationship) => validCharacterIds.has(r.characterId));
+    } catch (error) {
+        console.error("Error suggesting character relationships:", error);
+        throw new Error("Falha ao sugerir relacionamentos. Tente novamente.");
     }
 };

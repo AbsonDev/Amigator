@@ -2,12 +2,21 @@ export interface Author {
   name: string;
 }
 
+export interface Relationship {
+  characterId: string;
+  type: string; // ex: Amigo, Inimigo, Parente, Interesse Amoroso
+  description: string;
+}
+
 export interface Character {
   id: string;
   name: string;
   description: string;
+  appearance: string; // Foco para a geração de imagem
   role: string;
   avatarUrl: string;
+  narrativeArc: string;
+  relationships: Relationship[];
 }
 
 export interface Chapter {
@@ -63,23 +72,28 @@ export interface ActionLogEntry {
   action: string;
 }
 
+// Represents only the creative content of the story for versioning
+export interface StoryContent {
+  title: string;
+  genre: string;
+  synopsis: string;
+  characters: Character[];
+  chapters: Chapter[];
+  world: WorldEntry[];
+}
+
 export interface Version {
   id: string;
   name: string;
   createdAt: string;
-  storyState: Story;
+  storyState: StoryContent; // Uses the content-only type
 }
 
 
-export interface Story {
+export interface Story extends StoryContent {
   id: string;
-  title: string;
-  synopsis: string;
-  characters: Character[];
-  chapters: Chapter[];
   analysis: StoryAnalysis;
   chatHistory: Message[];
-  world: WorldEntry[];
   versions: Version[];
   actionLog: ActionLogEntry[];
   autosaveEnabled: boolean;

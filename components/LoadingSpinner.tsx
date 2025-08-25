@@ -5,6 +5,7 @@ import { SparklesIcon } from './Icons';
 const messages = [
   "Invocando as musas da criatividade...",
   "Consultando oráculos literários...",
+  "Pintando os retratos dos seus personagens...",
   "Tecendo o fio da narrativa...",
   "Dando vida aos personagens...",
   "Construindo mundos palavra por palavra...",
