@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import type { Story, Character, Relationship } from '../../types';
 import { useStory } from '../../context/StoryContext';
-import { SparklesIcon, LinkIcon } from '../Icons';
-import { generateCharacterAvatar, suggestCharacterRelationships } from '../../services/geminiService';
+import { SparklesIcon, LinkIcon, ChatBubbleOvalLeftEllipsisIcon } from '../Icons';
+import { generateCharacterAvatar, suggestCharacterRelationships, analyzeCharacterVoice } from '../../services/geminiService';
 import Modal from '../common/Modal';
+import CharacterChatModal from './CharacterChatModal';
+import CharacterVoiceAnalysisModal from './CharacterVoiceAnalysisModal';
 
 type ArtStyle = "Arte Digital" | "Fotorrealista" | "Anime/Mangá" | "Pintura a Óleo" | "Fantasia Sombria";
 
@@ -14,11 +16,18 @@ interface EditCharacterModalProps {
 }
 
 const EditCharacterModal: React.FC<EditCharacterModalProps> = ({ character, onClose, onSave }) => {
-    const { activeStory } = useStory();
+    const { activeStory, updateActiveStory } = useStory();
     const [editedChar, setEditedChar] = useState(character);
     const [artStyle, setArtStyle] = useState<ArtStyle>("Arte Digital");
+    
+    // Loading states
     const [isGeneratingAvatar, setIsGeneratingAvatar] = useState(false);
     const [isSuggestingRels, setIsSuggestingRels] = useState(false);
+    const [isAnalyzingVoice, setIsAnalyzingVoice] = useState(false);
+    
+    // Modal states
+    const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+    const [isVoiceAnalysisModalOpen, setIsVoiceAnalysisModalOpen] = useState(false);
     
     const [newRelCharacterId, setNewRelCharacterId] = useState('');
     const [newRelType, setNewRelType] = useState('Aliado');
@@ -90,10 +99,43 @@ const EditCharacterModal: React.FC<EditCharacterModalProps> = ({ character, onCl
         }
     };
 
+    const handleAnalyzeVoice = async () => {
+        if (!activeStory) return;
+        setIsAnalyzingVoice(true);
+        try {
+            const results = await analyzeCharacterVoice(activeStory, character);
+            updateActiveStory(story => {
+                const charVoiceAnalysis = story.analysis.characterVoices[character.id] || { results: [], ignored: [], lastAnalyzed: null };
+                return {
+                    ...story,
+                    analysis: {
+                        ...story.analysis,
+                        characterVoices: {
+                            ...story.analysis.characterVoices,
+                            [character.id]: {
+                                ...charVoiceAnalysis,
+                                results,
+                                lastAnalyzed: new Date().toISOString()
+                            }
+                        }
+                    },
+                    actionLog: [...story.actionLog, { id: `log-${Date.now()}`, timestamp: new Date().toISOString(), actor: 'agent', action: `Analisou a voz do personagem '${character.name}'.`}]
+                };
+            });
+            setIsVoiceAnalysisModalOpen(true);
+        } catch (e) {
+            alert((e as Error).message);
+        } finally {
+            setIsAnalyzingVoice(false);
+        }
+    };
+
+
     if (!activeStory) return null;
     const otherCharacters = activeStory.characters.filter(c => c.id !== character.id);
 
     return (
+        <>
         <Modal isOpen={true} onClose={onClose} title={`Estúdio de Personagem: ${character.name}`} className="max-w-6xl max-h-[90vh]">
             <header className="p-4 border-b border-brand-secondary flex-shrink-0">
                 <h2 id="modal-title" className="text-2xl font-bold font-serif text-brand-text-primary">Estúdio de Personagem: {character.name}</h2>
@@ -150,30 +192,44 @@ const EditCharacterModal: React.FC<EditCharacterModalProps> = ({ character, onCl
                         <textarea name="narrativeArc" id="narrativeArc" value={editedChar.narrativeArc} onChange={handleInputChange} rows={3} className="w-full px-3 py-2 bg-brand-background border border-brand-secondary rounded-lg focus:ring-brand-primary outline-none font-serif" placeholder="Descreva a jornada do personagem: como ele começa, se transforma e termina a história." />
                     </div>
                 </div>
-                <div className="lg:col-span-1 space-y-4 bg-brand-background/50 p-4 rounded-lg border border-brand-secondary">
-                    <div className="flex justify-between items-center">
-                        <h3 className="font-semibold text-brand-text-primary">Relacionamentos</h3>
-                        <button onClick={handleSuggestRelationships} disabled={isSuggestingRels} className="flex items-center gap-1 text-xs bg-brand-secondary p-2 rounded-md hover:bg-brand-primary">
-                            {isSuggestingRels ? 'Analisando...' : 'Sugerir com IA'} <SparklesIcon className="w-4 h-4"/>
-                        </button>
+                <div className="lg:col-span-1 space-y-4 bg-brand-background/50 p-4 rounded-lg border border-brand-secondary flex flex-col">
+                    <div>
+                        <div className="flex justify-between items-center">
+                            <h3 className="font-semibold text-brand-text-primary">Relacionamentos</h3>
+                            <button onClick={handleSuggestRelationships} disabled={isSuggestingRels} className="flex items-center gap-1 text-xs bg-brand-secondary p-2 rounded-md hover:bg-brand-primary">
+                                {isSuggestingRels ? 'Analisando...' : 'Sugerir com IA'} <SparklesIcon className="w-4 h-4"/>
+                            </button>
+                        </div>
+                        <div className="space-y-2 max-h-48 overflow-y-auto pr-2 mt-2">
+                          {editedChar.relationships.map((rel, index) => (
+                              <div key={index} className="bg-brand-surface p-2 rounded-md">
+                                  <p className="text-sm font-semibold">{otherCharacters.find(c=>c.id === rel.characterId)?.name} - <span className="font-normal italic">{rel.type}</span></p>
+                                  <p className="text-xs text-brand-text-secondary">{rel.description}</p>
+                              </div>
+                          ))}
+                        </div>
+                        <form onSubmit={handleAddRelationship} className="border-t border-brand-secondary pt-3 space-y-2 mt-2">
+                             <select value={newRelCharacterId} onChange={(e) => setNewRelCharacterId(e.target.value)} className="w-full px-3 py-2 text-sm bg-brand-surface border border-brand-secondary rounded-lg focus:ring-brand-primary outline-none">
+                                <option value="">Selecione um personagem...</option>
+                                {otherCharacters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                            </select>
+                            <input type="text" value={newRelType} onChange={(e) => setNewRelType(e.target.value)} placeholder="Tipo de Relação (ex: Aliado)" className="w-full px-3 py-2 text-sm bg-brand-surface border border-brand-secondary rounded-lg focus:ring-brand-primary outline-none" />
+                            <input type="text" value={newRelDescription} onChange={(e) => setNewRelDescription(e.target.value)} placeholder="Descrição do relacionamento" className="w-full px-3 py-2 text-sm bg-brand-surface border border-brand-secondary rounded-lg focus:ring-brand-primary outline-none" />
+                            <button type="submit" className="w-full text-sm bg-brand-secondary p-2 rounded-md hover:bg-brand-primary flex items-center justify-center gap-2"><LinkIcon className="w-4 h-4" /> Adicionar Relação</button>
+                        </form>
                     </div>
-                    <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-                      {editedChar.relationships.map((rel, index) => (
-                          <div key={index} className="bg-brand-surface p-2 rounded-md">
-                              <p className="text-sm font-semibold">{otherCharacters.find(c=>c.id === rel.characterId)?.name} - <span className="font-normal italic">{rel.type}</span></p>
-                              <p className="text-xs text-brand-text-secondary">{rel.description}</p>
-                          </div>
-                      ))}
+
+                    <div className="border-t border-brand-secondary pt-4 mt-auto">
+                        <h3 className="font-semibold text-brand-text-primary mb-2">Voz do Personagem</h3>
+                        <div className="space-y-2">
+                            <button onClick={handleAnalyzeVoice} disabled={isAnalyzingVoice} className="w-full flex items-center justify-center gap-2 bg-brand-secondary text-white font-bold py-2.5 px-4 rounded-lg hover:bg-opacity-80 disabled:opacity-50">
+                               {isAnalyzingVoice ? 'Analisando...' : 'Analisar Consistência da Voz'} <SparklesIcon className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => setIsChatModalOpen(true)} className="w-full flex items-center justify-center gap-2 bg-brand-secondary text-white font-bold py-2.5 px-4 rounded-lg hover:bg-opacity-80">
+                                Conversar com {editedChar.name} <ChatBubbleOvalLeftEllipsisIcon className="w-4 h-4" />
+                            </button>
+                        </div>
                     </div>
-                    <form onSubmit={handleAddRelationship} className="border-t border-brand-secondary pt-3 space-y-2">
-                         <select value={newRelCharacterId} onChange={(e) => setNewRelCharacterId(e.target.value)} className="w-full px-3 py-2 text-sm bg-brand-surface border border-brand-secondary rounded-lg focus:ring-brand-primary outline-none">
-                            <option value="">Selecione um personagem...</option>
-                            {otherCharacters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                        </select>
-                        <input type="text" value={newRelType} onChange={(e) => setNewRelType(e.target.value)} placeholder="Tipo de Relação (ex: Aliado)" className="w-full px-3 py-2 text-sm bg-brand-surface border border-brand-secondary rounded-lg focus:ring-brand-primary outline-none" />
-                        <input type="text" value={newRelDescription} onChange={(e) => setNewRelDescription(e.target.value)} placeholder="Descrição do relacionamento" className="w-full px-3 py-2 text-sm bg-brand-surface border border-brand-secondary rounded-lg focus:ring-brand-primary outline-none" />
-                        <button type="submit" className="w-full text-sm bg-brand-secondary p-2 rounded-md hover:bg-brand-primary flex items-center justify-center gap-2"><LinkIcon className="w-4 h-4" /> Adicionar Relação</button>
-                    </form>
                 </div>
             </div>
             <footer className="p-4 border-t border-brand-secondary flex-shrink-0 flex justify-end gap-2">
@@ -181,6 +237,21 @@ const EditCharacterModal: React.FC<EditCharacterModalProps> = ({ character, onCl
                 <button onClick={() => onSave(editedChar)} className="bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-90">Salvar Alterações</button>
             </footer>
         </Modal>
+
+        {isChatModalOpen && (
+            <CharacterChatModal
+                story={activeStory}
+                character={character}
+                onClose={() => setIsChatModalOpen(false)}
+            />
+        )}
+        {isVoiceAnalysisModalOpen && (
+             <CharacterVoiceAnalysisModal
+                character={character}
+                onClose={() => setIsVoiceAnalysisModalOpen(false)}
+            />
+        )}
+        </>
     );
 };
 

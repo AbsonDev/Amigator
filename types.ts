@@ -31,7 +31,7 @@ export interface Chapter {
 }
 
 export interface Message {
-    role: 'user' | 'model';
+    role: 'user' | 'model' | 'character';
     parts: string;
 }
 
@@ -54,6 +54,13 @@ export interface PacingPoint {
   justification: string;
 }
 
+export interface CharacterVoiceDeviation {
+  chapterId: string;
+  chapterTitle: string;
+  dialogueSnippet: string;
+  explanation: string;
+}
+
 export interface StoryAnalysis {
     scriptIssues: {
         results: ScriptIssue[];
@@ -68,6 +75,13 @@ export interface StoryAnalysis {
     pacing: {
         results: PacingPoint[];
         lastAnalyzed: string | null;
+    };
+    characterVoices: {
+        [characterId: string]: {
+            results: CharacterVoiceDeviation[];
+            ignored: string[]; // Array of dialogueSnippets that are ignored
+            lastAnalyzed: string | null;
+        }
     };
 }
 

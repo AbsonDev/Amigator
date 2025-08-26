@@ -27,6 +27,7 @@ const initialAnalysisState = {
     scriptIssues: { results: [], ignored: [], lastAnalyzed: null },
     repetitions: { results: [], ignored: [], lastAnalyzed: null },
     pacing: { results: [], lastAnalyzed: null },
+    characterVoices: {},
 };
 
 
@@ -46,7 +47,8 @@ export const StoryProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             !story.analysis || 
             !story.actionLog || 
             !story.plot ||
-            !story.analysis.pacing
+            !story.analysis.pacing ||
+            !story.analysis.characterVoices
         );
         if (needsMigration) {
             setStories(currentStories => 
@@ -58,6 +60,7 @@ export const StoryProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                     migratedAnalysis.scriptIssues = { ...initialAnalysisState.scriptIssues, ...(story.analysis?.scriptIssues || {})};
                     migratedAnalysis.repetitions = { ...initialAnalysisState.repetitions, ...(story.analysis?.repetitions || {})};
                     migratedAnalysis.pacing = { ...initialAnalysisState.pacing, ...(story.analysis?.pacing || {})};
+                    migratedAnalysis.characterVoices = story.analysis?.characterVoices || {};
 
                     return {
                         ...story,

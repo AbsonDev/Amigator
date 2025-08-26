@@ -1,7 +1,7 @@
 
 
 import { GoogleGenAI, Type } from "@google/genai";
-import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory, StoryContent, Relationship, PlotCard, PacingPoint } from '../types';
+import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory, StoryContent, Relationship, PlotCard, PacingPoint, CharacterVoiceDeviation } from '../types';
 
 if (!process.env.API_KEY) {
   throw new Error("API_KEY environment variable not set");
@@ -135,6 +135,7 @@ const initialAnalysisState = {
     scriptIssues: { results: [], ignored: [], lastAnalyzed: null },
     repetitions: { results: [], ignored: [], lastAnalyzed: null },
     pacing: { results: [], lastAnalyzed: null },
+    characterVoices: {},
 };
 
 export const generateStoryStructure = async (genre: string, theme: string, userPrompt: string): Promise<Story> => {
@@ -965,5 +966,94 @@ ${stripHtml(c.content).substring(0, 8000)}
     } catch (error) {
         console.error("Error analyzing pacing and tension:", error);
         throw new Error("Falha ao analisar o ritmo da história. Tente novamente.");
+    }
+};
+
+const characterVoiceDeviationSchema = {
+    type: Type.ARRAY,
+    items: {
+        type: Type.OBJECT,
+        properties: {
+            chapterId: { type: Type.STRING, description: 'O ID do capítulo onde a inconsistência ocorre.' },
+            chapterTitle: { type: Type.STRING, description: 'O título do capítulo onde a inconsistência ocorre.' },
+            dialogueSnippet: { type: Type.STRING, description: 'A fala exata que soa inconsistente.' },
+            explanation: { type: Type.STRING, description: 'Uma breve explicação de por que a fala é inconsistente com a voz do personagem.' }
+        },
+        required: ["chapterId", "chapterTitle", "dialogueSnippet", "explanation"]
+    }
+};
+
+
+export const analyzeCharacterVoice = async (story: Story, character: Character): Promise<CharacterVoiceDeviation[]> => {
+    const prompt = `
+        Aja como um editor literário meticuloso, especialista em voz de personagem. Sua tarefa é analisar a consistência da voz de um personagem específico em uma história.
+
+        Personagem para Analisar:
+        - Nome: ${character.name}
+        - Papel: ${character.role}
+        - Descrição: ${character.description}
+
+        Manuscrito Completo (com metadados de capítulo):
+        ---
+        ${story.chapters.map(c => `[INÍCIO DO CAPÍTULO ID=${c.id} TÍTULO="${c.title}"]\n${stripHtml(c.content)}\n[FIM DO CAPÍTULO TÍTULO="${c.title}"]`).join('\n\n')}
+        ---
+
+        Instruções:
+        1. **Identificar Diálogo:** Leia todo o manuscrito e identifique todas as falas ditas por "${character.name}". Preste atenção às marcações de diálogo (ex: "ele disse", "ela sussurrou") e ao contexto para atribuir a fala corretamente.
+        2. **Construir Perfil de Voz:** Com base no diálogo que você identificou para "${character.name}", crie um perfil de voz consistente. Observe seu vocabulário típico (simples/complexo), comprimento das frases, uso de gírias ou linguagem formal, tom (ex: sarcástico, otimista, cansado) e quaisquer tiques verbais.
+        3. **Encontrar Inconsistências:** Reexamine todo o diálogo de "${character.name}". Identifique quaisquer falas que se desviem significativamente do perfil de voz que você estabeleceu.
+        4. **Formatar Saída:** Retorne suas descobertas como um array JSON de acordo com o esquema fornecido. Para cada inconsistência, forneça o ID do capítulo, o título do capítulo, a fala exata e uma explicação concisa do porquê ela é inconsistente. Se nenhuma inconsistência for encontrada, retorne um array vazio.
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: GEMINI_FLASH_MODEL,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: characterVoiceDeviationSchema,
+            },
+        });
+        const results = JSON.parse(response.text);
+        const validChapterIds = new Set(story.chapters.map(c => c.id));
+        return results.filter((r: CharacterVoiceDeviation) => validChapterIds.has(r.chapterId));
+    } catch (error) {
+        console.error("Error analyzing character voice:", error);
+        throw new Error("Falha ao analisar a voz do personagem. Tente novamente.");
+    }
+};
+
+export const chatWithCharacter = async (story: Story, character: Character, conversation: Message[], newMessage: string): Promise<string> => {
+    const prompt = `
+        Você deve interpretar um personagem fictício. Não quebre o personagem. Não se refira a si mesmo como uma IA.
+
+        Você é ${character.name}.
+        Sua personalidade e história: ${character.description}
+        Seu papel na história: ${character.role}
+        A história em que você está é do gênero ${story.genre}, intitulada "${story.title}". Sinopse: ${story.synopsis}
+
+        Para entender sua voz, aqui está o texto completo da história. Preste muita atenção em como você fala, o que você diz e como interage com os outros.
+        ---
+        ${story.chapters.map(c => stripHtml(c.content)).join('\n\n')}
+        ---
+
+        Agora, o autor da sua história está falando com você. Responda a ele *como ${character.name}*.
+
+        Histórico da Conversa:
+        ${conversation.map(turn => `${turn.role === 'user' ? 'Autor' : character.name}: ${turn.parts}`).join('\n')}
+
+        Nova Mensagem do Autor:
+        ${newMessage}
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: GEMINI_FLASH_MODEL,
+            contents: prompt,
+        });
+        return response.text.trim();
+    } catch (error) {
+        console.error("Error with character chat:", error);
+        throw new Error("O personagem parece estar perdido em pensamentos. Tente novamente.");
     }
 };
