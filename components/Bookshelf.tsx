@@ -1,11 +1,12 @@
 import React, { useState, useRef } from 'react';
-import type { Author, Story } from '../types';
+import type { Story } from '../types';
 import { BookOpenIcon, SparklesIcon, UploadIcon, TrashIcon } from './Icons';
 import mammoth from 'mammoth';
 import ConfirmationModal from './common/ConfirmationModal';
+import { useAuthor } from '../context/AuthorContext';
+import UpgradeModal from './UpgradeModal';
 
 interface BookshelfProps {
-    author: Author;
     stories: Story[];
     onSelectStory: (storyId: string) => void;
     onStartNewStory: () => void;
@@ -51,12 +52,25 @@ const StoryCard: React.FC<{ story: Story; onSelect: () => void; onDelete: () => 
     );
 };
 
-const Bookshelf: React.FC<BookshelfProps> = ({ author, stories, onStartNewStory, onSelectStory, onImportStory, onDeleteStory }) => {
+const Bookshelf: React.FC<BookshelfProps> = ({ stories, onStartNewStory, onSelectStory, onImportStory, onDeleteStory }) => {
+    const { author } = useAuthor();
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
     const [storyToDelete, setStoryToDelete] = useState<Story | null>(null);
     const [fileContent, setFileContent] = useState<string | null>(null);
     const [fileName, setFileName] = useState<string>('');
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const isPro = author?.subscription.tier === 'Pro';
+    const canCreateNewStory = isPro || stories.length < 1;
+
+    const handleCreateClick = () => {
+        if (canCreateNewStory) {
+            onStartNewStory();
+        } else {
+            setIsUpgradeModalOpen(true);
+        }
+    };
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -98,8 +112,13 @@ const Bookshelf: React.FC<BookshelfProps> = ({ author, stories, onStartNewStory,
     
     const handleImportClick = () => {
         if (fileContent) {
-            onImportStory(fileContent);
-            handleCloseModal();
+            if (canCreateNewStory) {
+                onImportStory(fileContent);
+                handleCloseModal();
+            } else {
+                handleCloseModal();
+                setIsUpgradeModalOpen(true);
+            }
         }
     };
     
@@ -118,7 +137,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({ author, stories, onStartNewStory,
             <div className="min-h-screen bg-brand-background text-brand-text-primary p-4 sm:p-6 md:p-8">
                 <header className="flex flex-wrap justify-between items-center gap-4 mb-10">
                     <div>
-                        <h1 className="text-4xl font-bold font-serif">Estante de {author.name}</h1>
+                        <h1 className="text-4xl font-bold font-serif">Estante de {author?.name}</h1>
                         <p className="text-brand-text-secondary mt-1">Seus projetos literários em um só lugar.</p>
                     </div>
                     <div className="flex gap-2">
@@ -130,8 +149,9 @@ const Bookshelf: React.FC<BookshelfProps> = ({ author, stories, onStartNewStory,
                             Importar Livro
                         </button>
                         <button
-                            onClick={onStartNewStory}
+                            onClick={handleCreateClick}
                             className="flex items-center gap-2 bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-90 transition-all duration-300 transform hover:scale-105"
+                            title={!canCreateNewStory ? "Atualize para Pro para criar livros ilimitados" : ""}
                         >
                             <SparklesIcon className="w-5 h-5" />
                             Criar Novo Livro
@@ -210,6 +230,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({ author, stories, onStartNewStory,
                     </div>
                 </div>
             )}
+            {isUpgradeModalOpen && <UpgradeModal isOpen={isUpgradeModalOpen} onClose={() => setIsUpgradeModalOpen(false)} />}
         </>
     );
 };

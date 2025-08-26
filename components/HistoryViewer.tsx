@@ -1,13 +1,17 @@
 
 import React, { useState } from 'react';
 import type { Story, Version, StoryContent } from '../types';
-import { AgentIcon, UserCircleIcon } from './Icons';
+import { AgentIcon, UserCircleIcon, LockClosedIcon } from './Icons';
 import { useStory } from '../context/StoryContext';
 import ConfirmationModal from './common/ConfirmationModal';
+import { useAuthor } from '../context/AuthorContext';
 
-interface HistoryViewerProps {}
+interface HistoryViewerProps {
+    openUpgradeModal: () => void;
+}
 
-const HistoryViewer: React.FC<HistoryViewerProps> = () => {
+const HistoryViewer: React.FC<HistoryViewerProps> = ({ openUpgradeModal }) => {
+    const { author } = useAuthor();
     const { activeStory, updateActiveStory } = useStory();
     const [activeTab, setActiveTab] = useState<'versions' | 'log'>('versions');
     const [isSaving, setIsSaving] = useState(false);
@@ -15,7 +19,9 @@ const HistoryViewer: React.FC<HistoryViewerProps> = () => {
     const [viewingVersion, setViewingVersion] = useState<Version | null>(null);
     const [versionToRestore, setVersionToRestore] = useState<Version | null>(null);
 
-    if (!activeStory) return null;
+    if (!activeStory || !author) return null;
+
+    const isPro = author.subscription.tier === 'Pro';
 
     const handleSaveVersion = () => {
         if (!versionName.trim()) {
@@ -77,6 +83,10 @@ const HistoryViewer: React.FC<HistoryViewerProps> = () => {
     };
 
     const handleToggleAutosave = () => {
+        if (!isPro) {
+            openUpgradeModal();
+            return;
+        }
         updateActiveStory(prevStory => {
             const newAutosaveState = !prevStory.autosaveEnabled;
             return {
@@ -85,6 +95,14 @@ const HistoryViewer: React.FC<HistoryViewerProps> = () => {
                 actionLog: [...prevStory.actionLog, { id: `log-${Date.now()}`, timestamp: new Date().toISOString(), actor: 'user', action: `O salvamento automático foi ${newAutosaveState ? 'ativado' : 'desativado'}.`}]
             };
         });
+    };
+
+     const handleProFeatureClick = (action: () => void) => {
+        if (isPro) {
+            action();
+        } else {
+            openUpgradeModal();
+        }
     };
     
     const sortedActionLog = [...activeStory.actionLog].reverse();
@@ -107,20 +125,22 @@ const HistoryViewer: React.FC<HistoryViewerProps> = () => {
 
                 {activeTab === 'versions' && (
                     <div>
-                        <div className="bg-brand-surface p-4 rounded-lg border border-brand-secondary mb-6">
+                        <div className="bg-brand-surface p-4 rounded-lg border border-brand-secondary mb-6 relative">
+                             {!isPro && <span className="absolute top-2 right-2 text-xs bg-yellow-500 text-black font-bold px-2 py-1 rounded">PRO</span>}
                             <div className="flex justify-between items-center">
                                 <div>
-                                    <h2 className="font-bold text-brand-text-primary">Salvar Versões Automaticamente</h2>
+                                    <h2 className="font-bold text-brand-text-primary flex items-center gap-2">Salvar Versões Automaticamente {!isPro && <LockClosedIcon className="w-4 h-4 text-yellow-400" />}</h2>
                                     <p className="text-sm text-brand-text-secondary mt-1">Cria uma versão de backup 5 segundos após você parar de digitar no editor.</p>
                                 </div>
-                                <button onClick={handleToggleAutosave} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${activeStory.autosaveEnabled ? 'bg-brand-primary' : 'bg-brand-secondary'}`}>
-                                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${activeStory.autosaveEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                                <button onClick={handleToggleAutosave} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${activeStory.autosaveEnabled && isPro ? 'bg-brand-primary' : 'bg-brand-secondary'}`}>
+                                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${activeStory.autosaveEnabled && isPro ? 'translate-x-6' : 'translate-x-1'}`} />
                                 </button>
                             </div>
                         </div>
 
-                        <div className="bg-brand-surface p-4 rounded-lg border border-brand-secondary mb-6">
-                            <h2 className="font-bold text-brand-text-primary">Criar um Ponto de Restauração Manual</h2>
+                        <div className="bg-brand-surface p-4 rounded-lg border border-brand-secondary mb-6 relative">
+                            {!isPro && <span className="absolute top-2 right-2 text-xs bg-yellow-500 text-black font-bold px-2 py-1 rounded">PRO</span>}
+                            <h2 className="font-bold text-brand-text-primary flex items-center gap-2">Criar um Ponto de Restauração Manual {!isPro && <LockClosedIcon className="w-4 h-4 text-yellow-400" />}</h2>
                             <p className="text-sm text-brand-text-secondary mt-1 mb-3">Salve o estado atual do seu livro como uma versão nomeada para poder restaurá-lo no futuro.</p>
                              {isSaving ? (
                                 <div className="flex gap-2">
@@ -135,7 +155,7 @@ const HistoryViewer: React.FC<HistoryViewerProps> = () => {
                                     <button onClick={() => setIsSaving(false)} className="bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80">Cancelar</button>
                                 </div>
                             ) : (
-                                <button onClick={() => setIsSaving(true)} className="bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-90 transition-all">
+                                <button onClick={() => handleProFeatureClick(() => setIsSaving(true))} className="bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-90 transition-all">
                                     Salvar Versão Manual
                                 </button>
                             )}
@@ -152,7 +172,7 @@ const HistoryViewer: React.FC<HistoryViewerProps> = () => {
                                         </div>
                                         <div className="flex gap-2">
                                             <button onClick={() => setViewingVersion(version)} className="text-sm bg-brand-secondary text-white font-semibold py-1.5 px-3 rounded-md hover:bg-opacity-80">Visualizar</button>
-                                            <button onClick={() => setVersionToRestore(version)} className="text-sm bg-brand-primary text-white font-semibold py-1.5 px-3 rounded-md hover:bg-opacity-80">Restaurar</button>
+                                            <button onClick={() => handleProFeatureClick(() => setVersionToRestore(version))} className="text-sm bg-brand-primary text-white font-semibold py-1.5 px-3 rounded-md hover:bg-opacity-80">Restaurar</button>
                                         </div>
                                     </div>
                                 ))}

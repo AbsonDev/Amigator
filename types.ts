@@ -1,5 +1,9 @@
 export interface Author {
   name: string;
+  subscription: {
+    tier: 'Free' | 'Pro';
+    trialEnds?: string; // ISO string for trial end date
+  };
 }
 
 export interface Relationship {
@@ -20,7 +24,7 @@ export interface Character {
 }
 
 export interface Chapter {
-  id: string;
+  id:string;
   title: string;
   summary: string;
   content: string;

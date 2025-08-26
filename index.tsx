@@ -3,6 +3,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import { StoryProvider } from './context/StoryContext';
+import { AuthorProvider } from './context/AuthorContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -12,8 +13,10 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <StoryProvider>
-      <App />
-    </StoryProvider>
+    <AuthorProvider>
+      <StoryProvider>
+        <App />
+      </StoryProvider>
+    </AuthorProvider>
   </React.StrictMode>
 );

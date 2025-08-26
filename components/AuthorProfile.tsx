@@ -2,18 +2,19 @@
 import React, { useState } from 'react';
 import type { Author } from '../types';
 import { PencilIcon } from './Icons';
+import { useAuthor } from '../context/AuthorContext';
 
-interface AuthorProfileProps {
-  onProfileCreate: (author: Author) => void;
-}
-
-const AuthorProfile: React.FC<AuthorProfileProps> = ({ onProfileCreate }) => {
+const AuthorProfile: React.FC = () => {
+  const { setAuthor } = useAuthor();
   const [name, setName] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim()) {
-      onProfileCreate({ name: name.trim() });
+      setAuthor({ 
+        name: name.trim(),
+        subscription: { tier: 'Free' }
+      });
     }
   };
 

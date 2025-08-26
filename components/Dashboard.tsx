@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import type { Author, Chapter } from '../types';
+import type { Chapter } from '../types';
 import { AppView } from '../types';
-import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, AgentIcon, GlobeAltIcon, ArrowDownTrayIcon, ClockIcon, ChevronDoubleLeftIcon } from './Icons';
+import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, GlobeAltIcon, ArrowDownTrayIcon, ClockIcon, ChevronDoubleLeftIcon, LockClosedIcon, WandSparklesIcon } from './Icons';
 import CharacterEditor from './CharacterEditor';
 import ChapterOrganizer from './ChapterOrganizer';
 import ChapterEditor from './ChapterEditor';
@@ -13,10 +13,11 @@ import { useStory } from '../context/StoryContext';
 import { jsPDF } from 'jspdf';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import saveAs from 'file-saver';
+import { useAuthor } from '../context/AuthorContext';
+import UpgradeModal from './UpgradeModal';
 
 
 interface DashboardProps {
-  author: Author;
   goToBookshelf: () => void;
 }
 
@@ -27,13 +28,15 @@ const StatCard: React.FC<{ label: string; value: string | number; }> = ({ label,
   </div>
 );
 
-const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
+const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
+  const { author } = useAuthor();
   const { activeStory, updateActiveStory } = useStory();
   const [currentView, setCurrentView] = useState<AppView>(AppView.OVERVIEW);
   const [editingChapter, setEditingChapter] = useState<Chapter | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isChatCollapsed, setIsChatCollapsed] = useState(true);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
   const wordCount = useMemo(() => {
     if (!activeStory) return 0;
@@ -41,6 +44,11 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
   }, [activeStory?.chapters]);
 
   const handleExport = async (format: 'pdf' | 'docx' | 'txt') => {
+    if (author?.subscription.tier === 'Free' && (format === 'pdf' || format === 'docx')) {
+      setIsExportModalOpen(false);
+      setIsUpgradeModalOpen(true);
+      return;
+    }
     if (!activeStory) return;
     
     updateActiveStory(story => ({
@@ -51,7 +59,7 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
     const fileName = activeStory.title.replace(/ /g, '_');
     
     if (format === 'txt') {
-      const content = `${activeStory.title}\npor ${author.name}\n\n${activeStory.synopsis}\n\n` + activeStory.chapters.map(c => `## ${c.title}\n\n${c.content}`).join('\n\n');
+      const content = `${activeStory.title}\npor ${author?.name}\n\n${activeStory.synopsis}\n\n` + activeStory.chapters.map(c => `## ${c.title}\n\n${c.content}`).join('\n\n');
       const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
       saveAs(blob, `${fileName}.txt`);
     }
@@ -62,7 +70,7 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
       doc.setFontSize(22);
       doc.text(activeStory.title, 105, 20, { align: 'center' });
       doc.setFontSize(14);
-      doc.text(`por ${author.name}`, 105, 30, { align: 'center' });
+      doc.text(`por ${author?.name}`, 105, 30, { align: 'center' });
 
       activeStory.chapters.forEach((chapter, index) => {
         if (index > 0 || activeStory.title.length > 0) doc.addPage();
@@ -80,7 +88,7 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
             sections: [{
                 children: [
                     new Paragraph({ text: activeStory.title, heading: HeadingLevel.TITLE }),
-                    new Paragraph({ text: `por ${author.name}`, heading: HeadingLevel.HEADING_2 }),
+                    new Paragraph({ text: `por ${author?.name}`, heading: HeadingLevel.HEADING_2 }),
                     new Paragraph({ text: activeStory.synopsis, style: "IntenseQuote" }),
                     ...activeStory.chapters.flatMap(chapter => [
                         new Paragraph({ text: chapter.title, heading: HeadingLevel.HEADING_1 }),
@@ -97,9 +105,16 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
     }
     setIsExportModalOpen(false);
   };
+  
+  const calculateDaysLeft = (endDate: string): number => {
+    const end = new Date(endDate);
+    const now = new Date();
+    const diff = end.getTime() - now.getTime();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  };
 
 
-  if (!activeStory) {
+  if (!activeStory || !author) {
     return (
       <div className="flex h-screen items-center justify-center">
         <p>Carregando história...</p>
@@ -134,7 +149,7 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
               <StatCard label="Capítulos" value={activeStory.chapters.length} />
               <StatCard label="Personagens" value={activeStory.characters.length} />
             </div>
-            <AuthorTools />
+            <AuthorTools openUpgradeModal={() => setIsUpgradeModalOpen(true)} />
           </div>
         );
       case AppView.CHAPTERS:
@@ -144,7 +159,7 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
       case AppView.WORLD:
         return <WorldBuilder />;
       case AppView.HISTORY:
-        return <HistoryViewer />;
+        return <HistoryViewer openUpgradeModal={() => setIsUpgradeModalOpen(true)} />;
       default:
         return null;
     }
@@ -179,6 +194,23 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
                     <NavItem icon={<UsersIcon className="w-5 h-5 flex-shrink-0"/>} label="Personagens" view={AppView.CHARACTERS} />
                     <NavItem icon={<GlobeAltIcon className="w-5 h-5 flex-shrink-0"/>} label="Mundo" view={AppView.WORLD} />
                     <NavItem icon={<ClockIcon className="w-5 h-5 flex-shrink-0"/>} label="Versionamento & Histórico" view={AppView.HISTORY} />
+                    {!isSidebarCollapsed && author.subscription.tier === 'Pro' && author.subscription.trialEnds && (
+                        <div className="px-3 py-4 my-2 text-center bg-brand-primary/10 rounded-lg border border-brand-primary/50">
+                            <p className="font-bold text-brand-primary">Teste Pro Ativo</p>
+                            <p className="text-xs text-brand-text-secondary mt-1">{calculateDaysLeft(author.subscription.trialEnds)} dias restantes</p>
+                        </div>
+                    )}
+                    {!isSidebarCollapsed && author.subscription.tier === 'Free' && (
+                      <div className="px-1 py-2">
+                          <button 
+                              onClick={() => setIsUpgradeModalOpen(true)}
+                              className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold py-2.5 px-4 rounded-lg hover:opacity-90 transition-all duration-300 transform hover:scale-105"
+                          >
+                              <WandSparklesIcon className="w-5 h-5" />
+                              Upgrade para Pro
+                          </button>
+                      </div>
+                    )}
                 </nav>
                 <div className="mt-auto space-y-2">
                     <div className={`border-t border-brand-secondary pt-4 text-center ${isSidebarCollapsed ? 'hidden' : ''}`}>
@@ -208,23 +240,27 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
             <AgentChatbot isCollapsed={isChatCollapsed} onToggle={() => setIsChatCollapsed(p => !p)} />
         </div>
         
+        {isUpgradeModalOpen && <UpgradeModal isOpen={isUpgradeModalOpen} onClose={() => setIsUpgradeModalOpen(false)} />}
+        
         {isExportModalOpen && (
              <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50" onClick={() => setIsExportModalOpen(false)}>
                 <div className="bg-brand-surface rounded-xl border border-brand-secondary w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
                     <h2 className="text-2xl font-bold font-serif text-brand-text-primary mb-4">Exportar Manuscrito</h2>
                     <p className="text-brand-text-secondary mb-6">Selecione o formato para exportar sua história.</p>
                     <div className="flex flex-col gap-3">
-                       <button onClick={() => handleExport('pdf')} className="w-full text-left bg-brand-secondary p-4 rounded-lg hover:bg-brand-primary transition-colors">
-                           <p className="font-bold">PDF</p>
-                           <p className="text-sm text-brand-text-secondary">Ideal para compartilhamento e leitura.</p>
-                       </button>
-                       <button onClick={() => handleExport('docx')} className="w-full text-left bg-brand-secondary p-4 rounded-lg hover:bg-brand-primary transition-colors">
-                           <p className="font-bold">DOCX (Microsoft Word)</p>
-                           <p className="text-sm text-brand-text-secondary">Perfeito para enviar para editores.</p>
-                       </button>
                        <button onClick={() => handleExport('txt')} className="w-full text-left bg-brand-secondary p-4 rounded-lg hover:bg-brand-primary transition-colors">
                            <p className="font-bold">TXT (Texto Plano)</p>
                            <p className="text-sm text-brand-text-secondary">Formato simples para máxima compatibilidade.</p>
+                       </button>
+                       <button onClick={() => handleExport('pdf')} className="w-full text-left bg-brand-secondary p-4 rounded-lg hover:bg-brand-primary transition-colors relative group">
+                           <p className="font-bold flex items-center gap-2">PDF {author.subscription.tier === 'Free' && <LockClosedIcon className="w-4 h-4 text-yellow-400" />}</p>
+                           <p className="text-sm text-brand-text-secondary">Ideal para compartilhamento e leitura.</p>
+                           {author.subscription.tier === 'Free' && <span className="absolute top-2 right-2 text-xs bg-yellow-500 text-black font-bold px-2 py-1 rounded">PRO</span>}
+                       </button>
+                       <button onClick={() => handleExport('docx')} className="w-full text-left bg-brand-secondary p-4 rounded-lg hover:bg-brand-primary transition-colors relative group">
+                           <p className="font-bold flex items-center gap-2">DOCX (Microsoft Word) {author.subscription.tier === 'Free' && <LockClosedIcon className="w-4 h-4 text-yellow-400" />}</p>
+                           <p className="text-sm text-brand-text-secondary">Perfeito para enviar para editores.</p>
+                           {author.subscription.tier === 'Free' && <span className="absolute top-2 right-2 text-xs bg-yellow-500 text-black font-bold px-2 py-1 rounded">PRO</span>}
                        </button>
                     </div>
                 </div>

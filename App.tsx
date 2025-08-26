@@ -1,9 +1,9 @@
 
 
-import React, { useState } from 'react';
+import React from 'react';
 import useLocalStorage from './hooks/useLocalStorage';
-import type { Author } from './types';
 import { useStory } from './context/StoryContext';
+import { useAuthor } from './context/AuthorContext';
 import AuthorProfile from './components/AuthorProfile';
 import StorySetup from './components/StorySetup';
 import Dashboard from './components/Dashboard';
@@ -12,7 +12,7 @@ import Bookshelf from './components/Bookshelf';
 import LandingPage from './components/LandingPage';
 
 const App: React.FC = () => {
-  const [author, setAuthor] = useLocalStorage<Author | null>('author-profile', null);
+  const { author } = useAuthor();
   const [hasVisited, setHasVisited] = useLocalStorage<boolean>('has-visited-writer-app', false);
   
   const {
@@ -27,10 +27,6 @@ const App: React.FC = () => {
     importStory,
     deleteStory
   } = useStory();
-
-  const handleProfileCreate = (newAuthor: Author) => {
-    setAuthor(newAuthor);
-  };
   
   const handleStart = () => {
     setHasVisited(true);
@@ -45,7 +41,7 @@ const App: React.FC = () => {
   }
 
   if (!author) {
-    return <AuthorProfile onProfileCreate={handleProfileCreate} />;
+    return <AuthorProfile />;
   }
   
   if (isCreating) {
@@ -54,13 +50,11 @@ const App: React.FC = () => {
 
   if (activeStory) {
     return <Dashboard 
-      author={author} 
       goToBookshelf={returnToBookshelf}
     />;
   }
 
   return <Bookshelf 
-    author={author} 
     stories={stories} 
     onSelectStory={selectStory} 
     onStartNewStory={startNewStory} 
