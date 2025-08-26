@@ -48,11 +48,10 @@ const AgentChatbot: React.FC<AgentChatbotProps> = ({ isCollapsed, onToggle }) =>
     }, [messages, isCollapsed]);
     
     const createMarkup = (markdownText: string) => {
+      // FIX: The `headerIds` option is deprecated and removed in recent versions of `marked`.
       const html = marked.parse(markdownText, {
         gfm: true,
         breaks: true,
-        mangle: false,
-        headerIds: false,
       });
       return { __html: html as string };
     };

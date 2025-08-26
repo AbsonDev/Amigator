@@ -5,14 +5,13 @@ import { modifyText } from '../../services/geminiService';
 interface ModifyTextModalProps {
   selectedText: string;
   fullContext: string;
-  selectionRange: [number, number];
   onClose: () => void;
   onReplaceText: (newText: string) => void;
 }
 
 const LoadingSpinnerSmall = () => <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-primary"></div>;
 
-const ModifyTextModal: React.FC<ModifyTextModalProps> = ({ selectedText, fullContext, selectionRange, onClose, onReplaceText }) => {
+const ModifyTextModal: React.FC<ModifyTextModalProps> = ({ selectedText, fullContext, onClose, onReplaceText }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [modifiedText, setModifiedText] = useState('');
   const [customInstruction, setCustomInstruction] = useState('');

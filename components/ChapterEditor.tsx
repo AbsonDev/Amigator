@@ -1,13 +1,15 @@
-
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import type { Chapter, BetaReaderFeedback, GrammarSuggestion, Story, Version, StoryContent } from '../types';
-import { SparklesIcon, ClipboardIcon, TextSelectIcon, GrammarIcon } from './Icons';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import type { Chapter, Version, StoryContent } from '../types';
+import { 
+    SparklesIcon, ClipboardIcon, TextSelectIcon, GrammarIcon, WandSparklesIcon,
+    BoldIcon, ItalicIcon, UnderlineIcon, ListBulletIcon, ListOrderedIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon
+} from './Icons';
 import { useStory } from '../context/StoryContext';
-import { continueWriting } from '../services/geminiService';
+import { continueWriting, formatTextWithAI } from '../services/geminiService';
 import FeedbackModal from './editor/FeedbackModal';
 import ModifyTextModal from './editor/ModifyTextModal';
 import GrammarModal from './editor/GrammarModal';
-
+import debounce from 'lodash.debounce';
 
 interface ChapterEditorProps {
   chapter: Chapter;
@@ -16,73 +18,130 @@ interface ChapterEditorProps {
 
 const LoadingButtonSpinner = () => <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>;
 
+// Helper to strip HTML tags for plain text operations
+const stripHtml = (html: string) => {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body.textContent || "";
+};
+
+const FormattingToolbar: React.FC<{ onMagicFormat: () => void, isFormatting: boolean }> = ({ onMagicFormat, isFormatting }) => {
+    const applyStyle = (command: string) => {
+        document.execCommand(command, false);
+    };
+
+    const FormatButton = ({ command, children, title }: { command: string, children: React.ReactNode, title: string }) => (
+        <button 
+            onMouseDown={e => { e.preventDefault(); applyStyle(command); }} 
+            title={title}
+            className="p-2 rounded-md hover:bg-brand-primary/20"
+        >
+            {children}
+        </button>
+    );
+
+    return (
+        <div className="bg-brand-surface border-b border-brand-secondary p-2 flex items-center gap-1 flex-wrap sticky top-0 z-10 flex-shrink-0">
+            <button onClick={onMagicFormat} disabled={isFormatting} className="flex items-center gap-2 text-sm bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-semibold px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed">
+                {isFormatting ? <LoadingButtonSpinner /> : <WandSparklesIcon className="w-4 h-4" />} Formatação Mágica
+            </button>
+            <div className="h-5 w-px bg-brand-secondary mx-2"></div>
+            <FormatButton command="bold" title="Negrito"><BoldIcon /></FormatButton>
+            <FormatButton command="italic" title="Itálico"><ItalicIcon /></FormatButton>
+            <FormatButton command="underline" title="Sublinhado"><UnderlineIcon /></FormatButton>
+            <div className="h-5 w-px bg-brand-secondary mx-2"></div>
+            <FormatButton command="insertUnorderedList" title="Lista com Marcadores"><ListBulletIcon /></FormatButton>
+            <FormatButton command="insertOrderedList" title="Lista Numerada"><ListOrderedIcon /></FormatButton>
+            <div className="h-5 w-px bg-brand-secondary mx-2"></div>
+            <FormatButton command="justifyLeft" title="Alinhar à Esquerda"><AlignLeftIcon /></FormatButton>
+            <FormatButton command="justifyCenter" title="Centralizar"><AlignCenterIcon /></FormatButton>
+            <FormatButton command="justifyRight" title="Alinhar à Direita"><AlignRightIcon /></FormatButton>
+        </div>
+    );
+};
+
+
 const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
   const { activeStory, updateActiveStory } = useStory();
-  const [content, setContent] = useState(chapter.content);
+  const editorRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState('');
-  const [selectionRange, setSelectionRange] = useState<[number, number]>([0, 0]);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const autosaveTimeoutRef = useRef<number | null>(null);
-
-  // Side Panel State
-  const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [panelTab, setPanelTab] = useState<'characters' | 'world'>('characters');
+  const [wordCount, setWordCount] = useState(() => stripHtml(chapter.content).split(/\s+/).filter(Boolean).length);
 
   // Loading states
   const [isLoadingContinue, setIsLoadingContinue] = useState(false);
+  const [isFormatting, setIsFormatting] = useState(false);
   
   // Modal states
   const [activeModal, setActiveModal] = useState<'feedback' | 'modify' | 'grammar' | null>(null);
 
+  // This effect prevents React from re-rendering the contentEditable div on every state change,
+  // which fixes the selection bugs.
   useEffect(() => {
-    return () => {
-      if (autosaveTimeoutRef.current) clearTimeout(autosaveTimeoutRef.current);
-    };
-  }, []);
+    if (editorRef.current) {
+        // Set the initial content.
+        editorRef.current.innerHTML = chapter.content;
+        
+        // Update word count initially.
+        setWordCount(stripHtml(chapter.content).split(/\s+/).filter(Boolean).length);
+    }
+  }, [chapter.id]); // Only run when the chapter itself changes.
 
+  const debouncedAutosave = useMemo(
+    () =>
+      debounce((currentContent: string) => {
+        if (!activeStory?.autosaveEnabled) return;
+        
+        const currentChapterState = { ...chapter, content: currentContent };
+        updateActiveStory(prevStory => {
+            const storyWithCurrentChapter = {
+                ...prevStory,
+                chapters: prevStory.chapters.map(c => c.id === currentChapterState.id ? currentChapterState : c)
+            };
+            const storyStateSnapshot: StoryContent = {
+              title: storyWithCurrentChapter.title,
+              genre: storyWithCurrentChapter.genre,
+              synopsis: storyWithCurrentChapter.synopsis,
+              chapters: storyWithCurrentChapter.chapters,
+              world: storyWithCurrentChapter.world,
+              characters: storyWithCurrentChapter.characters.map(char => ({...char, avatarUrl: ''}))
+            };
+            const newVersion: Version = {
+                id: `ver-${Date.now()}`,
+                name: `Autosave - ${new Date().toLocaleString()}`,
+                createdAt: new Date().toISOString(),
+                storyState: storyStateSnapshot
+            };
+            const allVersions = [...prevStory.versions, newVersion];
+            const manualVersions = allVersions.filter(v => !v.name.startsWith('Autosave'));
+            const autoVersions = allVersions.filter(v => v.name.startsWith('Autosave')).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+            const limitedAutoVersions = autoVersions.slice(0, 20);
+
+            return {
+                ...storyWithCurrentChapter,
+                versions: [...manualVersions, ...limitedAutoVersions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+                actionLog: [...prevStory.actionLog, { id: `log-${Date.now()}`, timestamp: new Date().toISOString(), actor: 'agent', action: `Versão salva automaticamente.`}]
+            };
+        });
+      }, 5000),
+    [activeStory?.autosaveEnabled, chapter.id, updateActiveStory]
+  );
+  
   useEffect(() => {
-    if (!activeStory?.autosaveEnabled) return;
-    if (autosaveTimeoutRef.current) clearTimeout(autosaveTimeoutRef.current);
+    return () => debouncedAutosave.cancel();
+  }, [debouncedAutosave]);
 
-    autosaveTimeoutRef.current = window.setTimeout(() => {
-      const currentChapterState = { ...chapter, content };
-      updateActiveStory(prevStory => {
-          const storyWithCurrentChapter = {
-              ...prevStory,
-              chapters: prevStory.chapters.map(c => c.id === currentChapterState.id ? currentChapterState : c)
-          };
-          const storyStateSnapshot: StoryContent = {
-            title: storyWithCurrentChapter.title,
-            genre: storyWithCurrentChapter.genre,
-            synopsis: storyWithCurrentChapter.synopsis,
-            chapters: storyWithCurrentChapter.chapters,
-            world: storyWithCurrentChapter.world,
-            characters: storyWithCurrentChapter.characters.map(char => ({...char, avatarUrl: ''}))
-          };
-          const newVersion: Version = {
-              id: `ver-${Date.now()}`,
-              name: `Autosave - ${new Date().toLocaleString()}`,
-              createdAt: new Date().toISOString(),
-              storyState: storyStateSnapshot
-          };
-          const allVersions = [...prevStory.versions, newVersion];
-          const manualVersions = allVersions.filter(v => !v.name.startsWith('Autosave'));
-          const autoVersions = allVersions.filter(v => v.name.startsWith('Autosave')).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          const limitedAutoVersions = autoVersions.slice(0, 20);
-
-          return {
-              ...storyWithCurrentChapter,
-              versions: [...manualVersions, ...limitedAutoVersions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
-              actionLog: [...prevStory.actionLog, { id: `log-${Date.now()}`, timestamp: new Date().toISOString(), actor: 'agent', action: `Versão salva automaticamente.`}]
-          };
-      });
-    }, 5000);
-
-  }, [content, activeStory?.autosaveEnabled, chapter, updateActiveStory]);
-
+  const handleInput = useCallback(() => {
+    if (editorRef.current) {
+      const currentContent = editorRef.current.innerHTML;
+      const text = stripHtml(currentContent);
+      setWordCount(text.split(/\s+/).filter(Boolean).length);
+      debouncedAutosave(currentContent);
+    }
+  }, [debouncedAutosave]);
 
   const handleSave = () => {
-    const updatedChapter = { ...chapter, content };
+    if (!editorRef.current) return;
+    const currentContent = editorRef.current.innerHTML;
+    const updatedChapter = { ...chapter, content: currentContent };
     updateActiveStory(prevStory => {
         return {
             ...prevStory,
@@ -93,32 +152,53 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
     alert('Capítulo salvo com sucesso!');
   };
 
-  const wordCount = useMemo(() => content.split(/\s+/).filter(Boolean).length, [content]);
-
-  const handleSelectionChange = () => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      const { selectionStart, selectionEnd } = textarea;
-      if (selectionStart !== selectionEnd) {
-        setSelectedText(textarea.value.substring(selectionStart, selectionEnd));
-        setSelectionRange([selectionStart, selectionEnd]);
-      } else {
+  const handleSelectionChange = useCallback(() => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0 && !selection.isCollapsed && editorRef.current?.contains(selection.anchorNode)) {
+        setSelectedText(selection.toString());
+    } else {
         setSelectedText('');
-      }
     }
-  };
+  }, []);
+
+  useEffect(() => {
+      document.addEventListener('selectionchange', handleSelectionChange);
+      return () => {
+          document.removeEventListener('selectionchange', handleSelectionChange);
+      };
+  }, [handleSelectionChange]);
 
   const handleContinueWriting = async () => {
+    if (!editorRef.current) return;
     setIsLoadingContinue(true);
     try {
-      const continuation = await continueWriting(content);
-      setContent(prev => prev.trim() + '\n\n' + continuation.trim());
+      const currentContent = editorRef.current.innerHTML;
+      const continuation = await continueWriting(currentContent);
+      editorRef.current.innerHTML += `<p>${continuation.trim()}</p>`;
+      handleInput();
     } catch (error) {
       alert((error as Error).message);
     } finally {
       setIsLoadingContinue(false);
     }
   };
+
+  const handleMagicFormat = async () => {
+    if (!editorRef.current) return;
+    setIsFormatting(true);
+    try {
+        const plainText = stripHtml(editorRef.current.innerHTML);
+        const formattedHtml = await formatTextWithAI(plainText);
+        editorRef.current.innerHTML = formattedHtml;
+        handleInput();
+    } catch (error) {
+        alert((error as Error).message);
+    } finally {
+        setIsFormatting(false);
+    }
+  };
+  
+  const getCurrentContent = () => editorRef.current ? editorRef.current.innerHTML : '';
 
   return (
     <>
@@ -147,79 +227,59 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
               <button onClick={() => setActiveModal('grammar')} className="flex items-center gap-2 text-sm bg-brand-secondary px-3 py-1.5 rounded-md hover:bg-brand-primary hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                   <GrammarIcon className="w-4 h-4" /> Verificar Gramática
               </button>
-              <div className="flex-grow"></div>
-               <button onClick={() => setIsPanelOpen(p => !p)} className="flex items-center gap-2 text-sm bg-brand-secondary px-3 py-1.5 rounded-md hover:bg-brand-primary hover:text-white transition-colors">
-                  {isPanelOpen ? 'Fechar Painel' : 'Painel de Contexto'}
-              </button>
           </div>
-
-          <div className="flex-grow flex flex-row overflow-hidden">
-              <div className="flex-grow flex flex-col h-full">
-                <textarea
-                    ref={textareaRef}
-                    value={content}
-                    onChange={(e) => setContent(e.target.value)}
-                    onSelect={handleSelectionChange}
-                    className="w-full h-full flex-grow bg-brand-surface border-x border-b border-brand-secondary rounded-bl-lg p-4 font-serif text-lg leading-relaxed text-brand-text-primary resize-none focus:ring-2 focus:ring-brand-primary outline-none"
-                    placeholder="Comece a escrever..."
-                />
-                <div className="text-right text-sm text-brand-text-secondary mt-2 pr-2">
-                    Contagem de palavras: {wordCount}
-                </div>
-              </div>
-
-              {/* Context Panel */}
-              <div className={`transition-all duration-300 ease-in-out flex-shrink-0 bg-brand-surface border-b border-r border-brand-secondary rounded-br-lg ${isPanelOpen ? 'w-80 p-4' : 'w-0 p-0'} overflow-hidden`}>
-                  <div className="flex border-b border-brand-secondary mb-2">
-                    <button onClick={() => setPanelTab('characters')} className={`px-3 py-1 text-sm font-semibold ${panelTab === 'characters' ? 'border-b-2 border-brand-primary text-brand-primary' : 'text-brand-text-secondary'}`}>Personagens</button>
-                    <button onClick={() => setPanelTab('world')} className={`px-3 py-1 text-sm font-semibold ${panelTab === 'world' ? 'border-b-2 border-brand-primary text-brand-primary' : 'text-brand-text-secondary'}`}>Mundo</button>
-                  </div>
-                  <div className="overflow-y-auto h-full">
-                    {panelTab === 'characters' && activeStory?.characters.map(c => (
-                        <div key={c.id} className="mb-3">
-                            <p className="font-bold text-sm text-brand-text-primary">{c.name}</p>
-                            <p className="text-xs text-brand-text-secondary line-clamp-2">{c.description}</p>
-                        </div>
-                    ))}
-                     {panelTab === 'world' && activeStory?.world.map(w => (
-                        <div key={w.id} className="mb-3">
-                            <p className="font-bold text-sm text-brand-text-primary">{w.name}</p>
-                            <p className="text-xs text-brand-text-secondary line-clamp-2">{w.description}</p>
-                        </div>
-                    ))}
-                  </div>
-              </div>
+          
+          <div className="flex-grow flex flex-col bg-brand-background border-x border-b border-brand-secondary rounded-b-lg overflow-hidden">
+             <FormattingToolbar onMagicFormat={handleMagicFormat} isFormatting={isFormatting} />
+             <div className="flex-grow p-8 overflow-y-auto">
+                <div
+                    ref={editorRef}
+                    onInput={handleInput}
+                    contentEditable
+                    suppressContentEditableWarning={true}
+                    className="w-full max-w-4xl mx-auto font-serif text-lg leading-relaxed text-brand-text-primary bg-brand-surface p-8 rounded-md border border-brand-secondary outline-none focus:ring-2 focus:ring-brand-primary"
+                    aria-label="Editor de Capítulo"
+                ></div>
+             </div>
+             <div className="flex-shrink-0 text-right p-2 border-t border-brand-secondary bg-brand-surface text-sm text-brand-text-secondary">
+                Contagem de palavras: {wordCount}
+             </div>
           </div>
       </div>
       
-      {activeModal === 'feedback' && (
-        <FeedbackModal 
-          chapterContent={content}
-          onClose={() => setActiveModal(null)}
-        />
-      )}
-
+      {activeModal === 'feedback' && <FeedbackModal chapterContent={getCurrentContent()} onClose={() => setActiveModal(null)} />}
+      
       {activeModal === 'modify' && selectedText && (
-        <ModifyTextModal
-          onClose={() => setActiveModal(null)}
-          selectedText={selectedText}
-          fullContext={content}
-          selectionRange={selectionRange}
+        <ModifyTextModal 
+          selectedText={selectedText} 
+          fullContext={getCurrentContent()} 
+          onClose={() => setActiveModal(null)} 
           onReplaceText={(newText) => {
-            const newContent = content.substring(0, selectionRange[0]) + newText + content.substring(selectionRange[1]);
-            setContent(newContent);
-            setSelectedText('');
+            if (editorRef.current) {
+                const selection = window.getSelection();
+                if (selection && selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    range.deleteContents();
+                    range.insertNode(document.createTextNode(newText));
+                    handleInput(); // To update word count and trigger autosave
+                }
+            }
             setActiveModal(null);
-          }}
+          }} 
         />
       )}
 
       {activeModal === 'grammar' && (
         <GrammarModal
+          textToCheck={stripHtml(getCurrentContent())}
           onClose={() => setActiveModal(null)}
-          textToCheck={content}
           onAcceptSuggestion={(suggestion) => {
-             setContent(prev => prev.replace(suggestion.originalText, suggestion.suggestedText));
+            if (editorRef.current) {
+              const content = editorRef.current.innerHTML;
+              // This is a simple implementation. A more robust solution would use Range/Selection APIs.
+              editorRef.current.innerHTML = content.replace(suggestion.originalText, suggestion.suggestedText);
+              handleInput();
+            }
           }}
         />
       )}

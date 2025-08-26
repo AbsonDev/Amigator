@@ -1,7 +1,7 @@
 export interface Author {
   name: string;
   subscription: {
-    tier: 'Free' | 'Pro';
+    tier: 'Free' | 'Hobby' | 'Amador' | 'Profissional';
     trialEnds?: string; // ISO string for trial end date
   };
 }
@@ -76,6 +76,11 @@ export interface ActionLogEntry {
   action: string;
 }
 
+export interface CoverTypography {
+  fontFamily: 'serif' | 'sans-serif';
+  color: 'light' | 'dark';
+}
+
 // Represents only the creative content of the story for versioning
 export interface StoryContent {
   title: string;
@@ -84,6 +89,8 @@ export interface StoryContent {
   characters: Character[];
   chapters: Chapter[];
   world: WorldEntry[];
+  coverUrl?: string;
+  coverTypography?: CoverTypography;
 }
 
 export interface Version {
@@ -110,6 +117,7 @@ export enum AppView {
   EDIT_CHAPTER,
   WORLD,
   HISTORY,
+  COVER_DESIGN,
 }
 
 export interface BetaReaderFeedback {

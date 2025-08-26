@@ -21,7 +21,7 @@ const HistoryViewer: React.FC<HistoryViewerProps> = ({ openUpgradeModal }) => {
 
     if (!activeStory || !author) return null;
 
-    const isPro = author.subscription.tier === 'Pro';
+    const isProfissional = author.subscription.tier === 'Profissional';
 
     const handleSaveVersion = () => {
         if (!versionName.trim()) {
@@ -83,7 +83,7 @@ const HistoryViewer: React.FC<HistoryViewerProps> = ({ openUpgradeModal }) => {
     };
 
     const handleToggleAutosave = () => {
-        if (!isPro) {
+        if (!isProfissional) {
             openUpgradeModal();
             return;
         }
@@ -98,7 +98,7 @@ const HistoryViewer: React.FC<HistoryViewerProps> = ({ openUpgradeModal }) => {
     };
 
      const handleProFeatureClick = (action: () => void) => {
-        if (isPro) {
+        if (isProfissional) {
             action();
         } else {
             openUpgradeModal();
@@ -126,21 +126,21 @@ const HistoryViewer: React.FC<HistoryViewerProps> = ({ openUpgradeModal }) => {
                 {activeTab === 'versions' && (
                     <div>
                         <div className="bg-brand-surface p-4 rounded-lg border border-brand-secondary mb-6 relative">
-                             {!isPro && <span className="absolute top-2 right-2 text-xs bg-yellow-500 text-black font-bold px-2 py-1 rounded">PRO</span>}
+                             {!isProfissional && <span className="absolute top-2 right-2 text-xs bg-yellow-500 text-black font-bold px-2 py-1 rounded">PRO</span>}
                             <div className="flex justify-between items-center">
                                 <div>
-                                    <h2 className="font-bold text-brand-text-primary flex items-center gap-2">Salvar Versões Automaticamente {!isPro && <LockClosedIcon className="w-4 h-4 text-yellow-400" />}</h2>
+                                    <h2 className="font-bold text-brand-text-primary flex items-center gap-2">Salvar Versões Automaticamente {!isProfissional && <LockClosedIcon className="w-4 h-4 text-yellow-400" />}</h2>
                                     <p className="text-sm text-brand-text-secondary mt-1">Cria uma versão de backup 5 segundos após você parar de digitar no editor.</p>
                                 </div>
-                                <button onClick={handleToggleAutosave} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${activeStory.autosaveEnabled && isPro ? 'bg-brand-primary' : 'bg-brand-secondary'}`}>
-                                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${activeStory.autosaveEnabled && isPro ? 'translate-x-6' : 'translate-x-1'}`} />
+                                <button onClick={handleToggleAutosave} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${activeStory.autosaveEnabled && isProfissional ? 'bg-brand-primary' : 'bg-brand-secondary'}`}>
+                                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${activeStory.autosaveEnabled && isProfissional ? 'translate-x-6' : 'translate-x-1'}`} />
                                 </button>
                             </div>
                         </div>
 
                         <div className="bg-brand-surface p-4 rounded-lg border border-brand-secondary mb-6 relative">
-                            {!isPro && <span className="absolute top-2 right-2 text-xs bg-yellow-500 text-black font-bold px-2 py-1 rounded">PRO</span>}
-                            <h2 className="font-bold text-brand-text-primary flex items-center gap-2">Criar um Ponto de Restauração Manual {!isPro && <LockClosedIcon className="w-4 h-4 text-yellow-400" />}</h2>
+                            {!isProfissional && <span className="absolute top-2 right-2 text-xs bg-yellow-500 text-black font-bold px-2 py-1 rounded">PRO</span>}
+                            <h2 className="font-bold text-brand-text-primary flex items-center gap-2">Criar um Ponto de Restauração Manual {!isProfissional && <LockClosedIcon className="w-4 h-4 text-yellow-400" />}</h2>
                             <p className="text-sm text-brand-text-secondary mt-1 mb-3">Salve o estado atual do seu livro como uma versão nomeada para poder restaurá-lo no futuro.</p>
                              {isSaving ? (
                                 <div className="flex gap-2">

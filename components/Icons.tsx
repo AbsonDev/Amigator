@@ -155,3 +155,59 @@ export const LockClosedIcon = ({ className = 'w-6 h-6' }: { className?: string }
       <path fillRule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clipRule="evenodd" />
     </svg>
 );
+
+export const PhotoIcon = ({ className = 'w-6 h-6' }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+    </svg>
+);
+
+
+// New Icons for Formatting Toolbar
+export const BoldIcon = ({ className = 'w-5 h-5' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
+    <path d="M3.5 4.5a2 2 0 012-2h3.5a2 2 0 010 4H5.5a.5.5 0 000 1h4.25a2 2 0 110 4H5.5a.5.5 0 000 1h5.5a2 2 0 010 4H5.5a2 2 0 01-2-2v-10z" />
+  </svg>
+);
+
+export const ItalicIcon = ({ className = 'w-5 h-5' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
+    <path d="M5.5 3.5A.5.5 0 016 3h5.5a.5.5 0 010 1H7.16l-1.42 12H8.5a.5.5 0 010 1H3a.5.5 0 010-1h1.34l1.42-12H4.5a.5.5 0 010-1H5.5z" />
+  </svg>
+);
+
+export const UnderlineIcon = ({ className = 'w-5 h-5' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
+    <path d="M5.5 3a.5.5 0 01.5.5v7.5a4 4 0 108 0V3.5a.5.5 0 011 0V11a5 5 0 11-10 0V3.5A.5.5 0 015.5 3zM4 15.5a.5.5 0 01.5-.5h11a.5.5 0 010 1h-11a.5.5 0 01-.5-.5z" />
+  </svg>
+);
+
+export const ListBulletIcon = ({ className = 'w-5 h-5' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
+    <path fillRule="evenodd" d="M2 5.75A.75.75 0 012.75 5h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 5.75zm0 4A.75.75 0 012.75 9h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 9.75zm0 4A.75.75 0 012.75 13h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 13.75z" clipRule="evenodd" />
+  </svg>
+);
+
+export const ListOrderedIcon = ({ className = 'w-5 h-5' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
+    <path fillRule="evenodd" d="M2.5 4A.5.5 0 013 3.5h.75a.75.75 0 000-1.5H3a2 2 0 00-2 2v1.5a.75.75 0 001.5 0V4zM7 4.75A.75.75 0 017.75 4h9.5a.75.75 0 010 1.5h-9.5A.75.75 0 017 4.75zM3.25 9.137c.36-.54.991-.887 1.71-.887.893 0 1.58.535 1.58 1.408 0 .633-.425 1.054-1.012 1.318l-.503.224a.75.75 0 000 1.398l.503.224c.587.264 1.012.685 1.012 1.318 0 .873-.687 1.408-1.58 1.408-.719 0-1.35-.347-1.71-.887a.75.75 0 10-1.218.874c.54.756 1.518 1.263 2.928 1.263 1.83 0 3.08-1.07 3.08-2.658 0-.968-.582-1.688-1.488-2.074l-.462-.196a.75.75 0 000-1.398l.462-.196c.906-.386 1.488-1.106 1.488-2.074 0-1.588-1.25-2.658-3.08-2.658-1.41 0-2.388.507-2.928 1.263a.75.75 0 101.218.874zM7 9.75A.75.75 0 017.75 9h9.5a.75.75 0 010 1.5h-9.5A.75.75 0 017 9.75zm.75 3.5a.75.75 0 000 1.5h9.5a.75.75 0 000-1.5h-9.5z" clipRule="evenodd" />
+  </svg>
+);
+
+export const AlignLeftIcon = ({ className = 'w-5 h-5' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
+    <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 4A.75.75 0 012.75 8h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 8.75zm0 4A.75.75 0 012.75 12h9.5a.75.75 0 010 1.5h-9.5A.75.75 0 012 12.75zm0 4A.75.75 0 012.75 16h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 16.75z" clipRule="evenodd" />
+  </svg>
+);
+
+export const AlignCenterIcon = ({ className = 'w-5 h-5' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
+    <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm3.5 4A.75.75 0 016.25 8h7.5a.75.75 0 010 1.5h-7.5A.75.75 0 015.5 8.75zm-1.5 4A.75.75 0 014.75 12h10.5a.75.75 0 010 1.5H4.75A.75.75 0 014 12.75zm3.5 4A.75.75 0 018.25 16h3.5a.75.75 0 010 1.5h-3.5A.75.75 0 017.5 16.75z" clipRule="evenodd" />
+  </svg>
+);
+
+export const AlignRightIcon = ({ className = 'w-5 h-5' }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={className}>
+    <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 4A.75.75 0 012.75 8h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 8.75zm5.5 4A.75.75 0 018.25 12h9.5a.75.75 0 010 1.5h-9.5A.75.75 0 017.5 12.75zm0 4A.75.75 0 018.25 16h9.5a.75.75 0 010 1.5h-9.5A.75.75 0 017.5 16.75z" clipRule="evenodd" />
+  </svg>
+);

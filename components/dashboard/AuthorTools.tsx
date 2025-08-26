@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { RefreshIcon, WandSparklesIcon, LockClosedIcon } from '../Icons';
 import { useStory } from '../../context/StoryContext';
@@ -20,7 +19,7 @@ const AuthorTools: React.FC<AuthorToolsProps> = ({ openUpgradeModal }) => {
 
     if (!activeStory || !author) return null;
     
-    const isPro = author.subscription.tier === 'Pro';
+    const isPro = ['Amador', 'Profissional'].includes(author.subscription.tier);
 
     const handleFeatureClick = (featureAction: () => void) => {
         if (isPro) {

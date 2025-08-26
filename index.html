@@ -10,6 +10,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
     <style>
+      /* Custom text selection style for better visibility in dark theme */
+      ::selection {
+        background-color: #8a4fff; /* brand-primary */
+        color: #ffffff;
+      }
+      
       .perspective { perspective: 1000px; }
       .transform-style-3d { transform-style: preserve-3d; }
       .group:hover .rotate-y-10 { transform: rotateY(-10deg); }

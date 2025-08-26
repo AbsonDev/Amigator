@@ -12,6 +12,65 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 const GEMINI_FLASH_MODEL = 'gemini-2.5-flash';
 const IMAGEN_MODEL = 'imagen-3.0-generate-002';
 
+// Helper to strip HTML tags for AI processing
+const stripHtml = (html: string) => {
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    return doc.body.textContent || "";
+};
+
+export const generateBookCover = async (prompt: string, style: string): Promise<string> => {
+    const fullPrompt = `Capa de livro, estilo de ${style}. A imagem deve ser puramente artística, SEM NENHUM TEXTO, letras, palavras, títulos ou nomes de autor. Foco total na arte visual evocativa e profissional. Prompt do usuário: "${prompt}"`;
+    try {
+        const response = await ai.models.generateImages({
+            model: IMAGEN_MODEL,
+            prompt: fullPrompt,
+            config: {
+                numberOfImages: 1,
+                outputMimeType: 'image/jpeg',
+                aspectRatio: '3:4',
+            },
+        });
+
+        if (response?.generatedImages?.length > 0 && response.generatedImages[0].image?.imageBytes) {
+            const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
+            return `data:image/jpeg;base64,${base64ImageBytes}`;
+        } else {
+            throw new Error("A API não retornou uma imagem válida.");
+        }
+    } catch (error) {
+        console.error("Error generating book cover:", error);
+        throw new Error("Falha ao gerar a capa do livro. Tente novamente.");
+    }
+};
+
+export const formatTextWithAI = async (text: string): Promise<string> => {
+    const prompt = `
+        Aja como um formatador de texto profissional para um manuscrito de ficção.
+        Analise o seguinte texto e formate-o usando tags HTML simples (<p>, <i>, <b>).
+        - Envolva cada parágrafo em tags <p></p>.
+        - Use <i> para pensamentos internos ou ênfase.
+        - Use <b> para um destaque forte, se aplicável.
+        - Garanta que os diálogos estejam em seus próprios parágrafos.
+        NÃO adicione, remova ou reescreva nenhuma palavra. A tarefa é estritamente de formatação.
+        Retorne apenas o HTML formatado.
+
+        Texto para formatar:
+        ---
+        ${text}
+        ---
+    `;
+    try {
+        const response = await ai.models.generateContent({
+            model: GEMINI_FLASH_MODEL,
+            contents: prompt,
+        });
+        return response.text.trim();
+    } catch (error) {
+        console.error("Error formatting text with AI:", error);
+        throw new Error("Falha ao formatar o texto. Tente novamente.");
+    }
+};
+
 export const extractCharacterAppearance = async (fullText: string, characterName: string): Promise<string> => {
   const prompt = `
     Analise o texto completo a seguir e extraia uma descrição consolidada da aparência física do personagem "${characterName}".
@@ -41,7 +100,7 @@ export const generateCharacterAvatar = async (appearance: string, genre: string,
     Crie um retrato de personagem, focado no rosto e ombros, no estilo de ${style}.
     Gênero da história: ${genre}.
     Descrição da aparência física do personagem: ${appearance}.
-    O retrato deve ser artístico, evocativo e fiel à descrição. Sem texto na imagem.
+    O retrato deve ser artístico, evocativo e fiel à descrição. IMPORTANTE: A imagem NÃO deve conter nenhum texto, letras ou palavras.
   `;
 
   try {
@@ -190,7 +249,7 @@ export const continueWriting = async (context: string): Promise<string> => {
 
 História até agora:
 ---
-${context}
+${stripHtml(context)}
 ---
 `;
   try {
@@ -210,7 +269,7 @@ export const modifyText = async (text: string, context: string, instruction: str
 
 Contexto completo do capítulo (para referência de tom e estilo):
 ---
-${context}
+${stripHtml(context)}
 ---
 
 Trecho de texto a ser modificado:
@@ -251,7 +310,7 @@ export const getBetaReaderFeedback = async (chapterContent: string): Promise<Bet
 
 Conteúdo do Capítulo:
 ---
-${chapterContent}
+${stripHtml(chapterContent)}
 ---
 `;
   try {
@@ -342,7 +401,7 @@ export const checkGrammar = async (text: string): Promise<GrammarSuggestion[]> =
 
         Texto para analisar:
         ---
-        ${text}
+        ${stripHtml(text)}
         ---
     `;
 
@@ -376,7 +435,7 @@ const repetitionSchema = {
 };
 
 export const analyzeRepetitions = async (story: Story): Promise<RepetitionIssue[]> => {
-    const fullText = story.chapters.map(c => `--- Início do Capítulo: ${c.title} ---\n${c.content}`).join('\n\n');
+    const fullText = story.chapters.map(c => `--- Início do Capítulo: ${c.title} ---\n${stripHtml(c.content)}`).join('\n\n');
     const prompt = `
         Aja como um editor de estilo. Analise o texto completo do livro a seguir em busca de palavras e frases repetidas que possam enfraquecer a prosa.
         Ignore palavras comuns (artigos, preposições, etc.). Concentre-se em substantivos, verbos, adjetivos e frases específicas que são usados com muita frequência.
@@ -702,7 +761,7 @@ export const analyzeTextForWorldEntries = async (text: string): Promise<Omit<Wor
 
         Texto para analisar:
         ---
-        ${text}
+        ${stripHtml(text)}
         ---
     `;
 
@@ -743,7 +802,7 @@ export const suggestCharacterRelationships = async (story: Story, characterId: s
     if (!mainCharacter) return [];
 
     const otherCharacters = story.characters.filter(c => c.id !== characterId);
-    const fullText = story.chapters.map(c => c.content).join("\n\n");
+    const fullText = story.chapters.map(c => stripHtml(c.content)).join("\n\n");
 
     const prompt = `
         Aja como um analista de personagens. Analise o texto da história fornecida e as interações entre "${mainCharacter.name}" e os outros personagens.

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import type { Chapter } from '../types';
 import { AppView } from '../types';
-import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, GlobeAltIcon, ArrowDownTrayIcon, ClockIcon, ChevronDoubleLeftIcon, LockClosedIcon, WandSparklesIcon } from './Icons';
+import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, GlobeAltIcon, ArrowDownTrayIcon, ClockIcon, ChevronDoubleLeftIcon, LockClosedIcon, WandSparklesIcon, PhotoIcon } from './Icons';
 import CharacterEditor from './CharacterEditor';
 import ChapterOrganizer from './ChapterOrganizer';
 import ChapterEditor from './ChapterEditor';
@@ -15,6 +15,7 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import saveAs from 'file-saver';
 import { useAuthor } from '../context/AuthorContext';
 import UpgradeModal from './UpgradeModal';
+import CoverDesigner from './CoverDesigner';
 
 
 interface DashboardProps {
@@ -44,7 +45,7 @@ const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
   }, [activeStory?.chapters]);
 
   const handleExport = async (format: 'pdf' | 'docx' | 'txt') => {
-    if (author?.subscription.tier === 'Free' && (format === 'pdf' || format === 'docx')) {
+    if (author && ['Free', 'Hobby'].includes(author.subscription.tier) && (format === 'pdf' || format === 'docx')) {
       setIsExportModalOpen(false);
       setIsUpgradeModalOpen(true);
       return;
@@ -160,6 +161,8 @@ const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
         return <WorldBuilder />;
       case AppView.HISTORY:
         return <HistoryViewer openUpgradeModal={() => setIsUpgradeModalOpen(true)} />;
+      case AppView.COVER_DESIGN:
+        return <CoverDesigner />;
       default:
         return null;
     }
@@ -192,11 +195,12 @@ const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
                     <NavItem icon={<HomeIcon className="w-5 h-5 flex-shrink-0"/>} label="Painel de Controle" view={AppView.OVERVIEW} />
                     <NavItem icon={<BookOpenIcon className="w-5 h-5 flex-shrink-0"/>} label="Capítulos" view={AppView.CHAPTERS} />
                     <NavItem icon={<UsersIcon className="w-5 h-5 flex-shrink-0"/>} label="Personagens" view={AppView.CHARACTERS} />
+                    <NavItem icon={<PhotoIcon className="w-5 h-5 flex-shrink-0"/>} label="Capa" view={AppView.COVER_DESIGN} />
                     <NavItem icon={<GlobeAltIcon className="w-5 h-5 flex-shrink-0"/>} label="Mundo" view={AppView.WORLD} />
                     <NavItem icon={<ClockIcon className="w-5 h-5 flex-shrink-0"/>} label="Versionamento & Histórico" view={AppView.HISTORY} />
-                    {!isSidebarCollapsed && author.subscription.tier === 'Pro' && author.subscription.trialEnds && (
+                    {!isSidebarCollapsed && author.subscription.tier !== 'Free' && author.subscription.trialEnds && (
                         <div className="px-3 py-4 my-2 text-center bg-brand-primary/10 rounded-lg border border-brand-primary/50">
-                            <p className="font-bold text-brand-primary">Teste Pro Ativo</p>
+                            <p className="font-bold text-brand-primary">Teste {author.subscription.tier} Ativo</p>
                             <p className="text-xs text-brand-text-secondary mt-1">{calculateDaysLeft(author.subscription.trialEnds)} dias restantes</p>
                         </div>
                     )}
@@ -207,7 +211,7 @@ const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
                               className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold py-2.5 px-4 rounded-lg hover:opacity-90 transition-all duration-300 transform hover:scale-105"
                           >
                               <WandSparklesIcon className="w-5 h-5" />
-                              Upgrade para Pro
+                              Upgrade de Plano
                           </button>
                       </div>
                     )}
@@ -253,14 +257,14 @@ const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
                            <p className="text-sm text-brand-text-secondary">Formato simples para máxima compatibilidade.</p>
                        </button>
                        <button onClick={() => handleExport('pdf')} className="w-full text-left bg-brand-secondary p-4 rounded-lg hover:bg-brand-primary transition-colors relative group">
-                           <p className="font-bold flex items-center gap-2">PDF {author.subscription.tier === 'Free' && <LockClosedIcon className="w-4 h-4 text-yellow-400" />}</p>
+                           <p className="font-bold flex items-center gap-2">PDF {['Free', 'Hobby'].includes(author.subscription.tier) && <LockClosedIcon className="w-4 h-4 text-yellow-400" />}</p>
                            <p className="text-sm text-brand-text-secondary">Ideal para compartilhamento e leitura.</p>
-                           {author.subscription.tier === 'Free' && <span className="absolute top-2 right-2 text-xs bg-yellow-500 text-black font-bold px-2 py-1 rounded">PRO</span>}
+                           {['Free', 'Hobby'].includes(author.subscription.tier) && <span className="absolute top-2 right-2 text-xs bg-yellow-500 text-black font-bold px-2 py-1 rounded">PRO</span>}
                        </button>
                        <button onClick={() => handleExport('docx')} className="w-full text-left bg-brand-secondary p-4 rounded-lg hover:bg-brand-primary transition-colors relative group">
-                           <p className="font-bold flex items-center gap-2">DOCX (Microsoft Word) {author.subscription.tier === 'Free' && <LockClosedIcon className="w-4 h-4 text-yellow-400" />}</p>
+                           <p className="font-bold flex items-center gap-2">DOCX (Microsoft Word) {['Free', 'Hobby'].includes(author.subscription.tier) && <LockClosedIcon className="w-4 h-4 text-yellow-400" />}</p>
                            <p className="text-sm text-brand-text-secondary">Perfeito para enviar para editores.</p>
-                           {author.subscription.tier === 'Free' && <span className="absolute top-2 right-2 text-xs bg-yellow-500 text-black font-bold px-2 py-1 rounded">PRO</span>}
+                           {['Free', 'Hobby'].includes(author.subscription.tier) && <span className="absolute top-2 right-2 text-xs bg-yellow-500 text-black font-bold px-2 py-1 rounded">PRO</span>}
                        </button>
                     </div>
                 </div>
