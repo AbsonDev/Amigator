@@ -5,11 +5,53 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Simulador de Escritor IA</title>
+    
+    <script type="importmap">
+    {
+      "imports": {
+        "@google/genai": "https://aistudiocdn.com/@google/genai@^1.15.0",
+        "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+        "react/": "https://aistudiocdn.com/react@^19.1.1/",
+        "react": "https://aistudiocdn.com/react@^19.1.1",
+        "jspdf": "https://aistudiocdn.com/jspdf@^3.0.2",
+        "docx": "https://aistudiocdn.com/docx@^9.5.1",
+        "marked": "https://aistudiocdn.com/marked@^16.2.0",
+        "file-saver": "https://aistudiocdn.com/file-saver@^2.0.5",
+        "mammoth": "https://aistudiocdn.com/mammoth@^1.10.0",
+        "lodash.debounce": "https://aistudiocdn.com/lodash.debounce@^4.0.8"
+      }
+    }
+    </script>
+
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              'brand-background': '#121212',
+              'brand-surface': '#1e1e1e',
+              'brand-secondary': '#3c3c3c',
+              'brand-primary': '#8a4fff',
+              'brand-text-primary': '#e0e0e0',
+              'brand-text-secondary': '#a0a0a0',
+            },
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+              serif: ['Lora', 'serif'],
+            },
+          }
+        }
+      }
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,400..700;1,400..700&display=swap" rel="stylesheet">
     <style>
+      body {
+        background-color: #121212; /* brand-background */
+        font-family: 'Inter', sans-serif;
+      }
       /* Custom text selection style for better visibility in dark theme */
       ::selection {
         background-color: #8a4fff; /* brand-primary */
@@ -50,48 +92,28 @@
         border-radius: 2px;
         transition: background-color 0.2s ease-in-out;
       }
-      .world-entry-highlight:hover {
-        background-color: rgba(138, 79, 255, 0.15);
+
+      /* Styles for Plot Visualizer */
+      .card-connector-out, .card-connector-in {
+        position: absolute;
+        top: 24px;
+        width: 16px;
+        height: 16px;
+        background-color: #3c3c3c;
+        border: 2px solid #555;
+        border-radius: 50%;
+        transform: translateY(-50%);
+        cursor: crosshair;
+        z-index: 10;
+        transition: background-color 0.2s, border-color 0.2s;
       }
+      .card-connector-out { right: -8px; }
+      .card-connector-in { left: -8px; }
+      .card-connector-out:hover { background-color: #8a4fff; border-color: #fff; }
+      .card-connector-in:hover { background-color: #8a4fff; border-color: #fff; }
     </style>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-              serif: ['Lora', 'serif'],
-            },
-            colors: {
-              'brand-background': '#121212',
-              'brand-surface': '#1e1e1e',
-              'brand-primary': '#8a4fff',
-              'brand-secondary': '#3c3c3c',
-              'brand-text-primary': '#e0e0e0',
-              'brand-text-secondary': '#a0a0a0',
-            }
-          }
-        }
-      }
-    </script>
-  <script type="importmap">
-{
-  "imports": {
-    "@google/genai": "https://esm.sh/@google/genai@^1.15.0",
-    "react/": "https://esm.sh/react@^19.1.1/",
-    "react": "https://esm.sh/react@^19.1.1",
-    "react-dom/": "https://esm.sh/react-dom@^19.1.1/",
-    "mammoth": "https://esm.sh/mammoth@1.7.2",
-    "jspdf": "https://esm.sh/jspdf@2.5.1",
-    "docx": "https://esm.sh/docx@8.5.0",
-    "file-saver": "https://esm.sh/file-saver@^2.0.5",
-    "lodash.debounce": "https://esm.sh/lodash.debounce@^4.0.8",
-    "marked": "https://esm.sh/marked@^13.0.2"
-  }
-}
-</script>
-</head>
-  <body class="bg-brand-background">
+  </head>
+  <body>
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

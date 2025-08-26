@@ -36,15 +36,16 @@ const EditCharacterModal: React.FC<EditCharacterModalProps> = ({ character, onCl
     const handleGenerateAvatar = async () => {
         if (!activeStory) return;
         setIsGeneratingAvatar(true);
-        try {
-            const newAvatarUrl = await generateCharacterAvatar(editedChar.appearance, activeStory.genre, artStyle);
-            setEditedChar(prev => ({ ...prev, avatarUrl: newAvatarUrl }));
-        } catch (e) {
-            alert("Falha ao gerar o avatar. Tente novamente.");
-            console.error(e);
-        } finally {
-            setIsGeneratingAvatar(false);
+        const result = await generateCharacterAvatar(editedChar.appearance, activeStory.genre, artStyle);
+        if (result.success) {
+            setEditedChar(prev => ({ ...prev, avatarUrl: result.url }));
+        } else {
+            setEditedChar(prev => ({ ...prev, avatarUrl: result.url })); // Also sets fallback URL
+            if(result.error) {
+               alert(result.error);
+            }
         }
+        setIsGeneratingAvatar(false);
     };
     
     const handleAddRelationship = (e: React.FormEvent) => {

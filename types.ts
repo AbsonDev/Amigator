@@ -100,6 +100,25 @@ export interface Version {
   storyState: StoryContent; // Uses the content-only type
 }
 
+export interface PlotCard {
+  id: string;
+  title: string;
+  description: string;
+  position: { x: number; y: number };
+  chapterId?: string;
+  characterIds?: string[];
+}
+
+export interface PlotConnection {
+  from: string; // from PlotCard id
+  to: string; // to PlotCard id
+}
+
+export interface PlotData {
+  cards: PlotCard[];
+  connections: PlotConnection[];
+}
+
 
 export interface Story extends StoryContent {
   id: string;
@@ -108,6 +127,7 @@ export interface Story extends StoryContent {
   versions: Version[];
   actionLog: ActionLogEntry[];
   autosaveEnabled: boolean;
+  plot: PlotData;
 }
 
 export enum AppView {
@@ -118,6 +138,7 @@ export enum AppView {
   WORLD,
   HISTORY,
   COVER_DESIGN,
+  PLOT,
 }
 
 export interface BetaReaderFeedback {

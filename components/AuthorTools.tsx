@@ -1,19 +1,33 @@
-
 import React, { useState, useMemo } from 'react';
-import { RefreshIcon, WandSparklesIcon } from './Icons';
+import { RefreshIcon, WandSparklesIcon, LockClosedIcon } from './Icons';
 import { useStory } from '../context/StoryContext';
 import { analyzeScriptContinuity, analyzeRepetitions } from '../services/geminiService';
 import IdeaHub from './IdeaHub';
+import AnalysisResultsModal from './dashboard/AnalysisResultsModal';
+import { useAuthor } from '../context/AuthorContext';
 
-const LoadingSpinnerSmall = () => <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-primary mx-auto"></div>;
+interface AuthorToolsProps {
+  openUpgradeModal: () => void;
+}
 
-const AuthorTools: React.FC = () => {
+const AuthorTools: React.FC<AuthorToolsProps> = ({ openUpgradeModal }) => {
+    const { author } = useAuthor();
     const { activeStory, updateActiveStory } = useStory();
     const [activeAnalysis, setActiveAnalysis] = useState<'script' | 'repetition' | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [isIdeaHubOpen, setIsIdeaHubOpen] = useState(false);
 
-    if (!activeStory) return null;
+    if (!activeStory || !author) return null;
+    
+    const isPro = ['Amador', 'Profissional'].includes(author.subscription.tier);
+
+    const handleFeatureClick = (featureAction: () => void) => {
+        if (isPro) {
+            featureAction();
+        } else {
+            openUpgradeModal();
+        }
+    };
 
     const handleAnalyzeScript = async () => {
         setIsAnalyzing(true);
@@ -55,32 +69,6 @@ const AuthorTools: React.FC = () => {
         }
     };
     
-    const handleIgnoreScriptIssue = (description: string) => {
-        updateActiveStory(story => ({
-            ...story,
-            analysis: {
-                ...story.analysis,
-                scriptIssues: {
-                    ...story.analysis.scriptIssues,
-                    ignored: [...new Set([...story.analysis.scriptIssues.ignored, description])]
-                }
-            }
-        }));
-    };
-
-    const handleIgnoreRepetition = (text: string) => {
-        updateActiveStory(story => ({
-            ...story,
-            analysis: {
-                ...story.analysis,
-                repetitions: {
-                    ...story.analysis.repetitions,
-                    ignored: [...new Set([...story.analysis.repetitions.ignored, text])]
-                }
-            }
-        }));
-    };
-
     const scriptIssues = useMemo(() => activeStory.analysis?.scriptIssues.results.filter(issue => !activeStory.analysis.scriptIssues.ignored.includes(issue.description)) || [], [activeStory.analysis?.scriptIssues]);
     const repetitionIssues = useMemo(() => activeStory.analysis?.repetitions.results.filter(issue => !activeStory.analysis.repetitions.ignored.includes(issue.text)) || [], [activeStory.analysis?.repetitions]);
 
@@ -89,22 +77,24 @@ const AuthorTools: React.FC = () => {
             <div className="mt-10">
                 <h2 className="text-2xl font-bold font-serif text-brand-text-primary mb-4">Ferramentas do Autor</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-brand-surface border border-brand-secondary rounded-lg p-6 flex flex-col">
-                        <h3 className="font-bold text-brand-text-primary">Continuidade da Trama</h3>
+                    <div className="bg-brand-surface border border-brand-secondary rounded-lg p-6 flex flex-col relative">
+                        {!isPro && <span className="absolute top-2 right-2 text-xs bg-yellow-500 text-black font-bold px-2 py-1 rounded">PRO</span>}
+                        <h3 className="font-bold text-brand-text-primary flex items-center gap-2">Continuidade da Trama {!isPro && <LockClosedIcon className="w-4 h-4 text-yellow-400" />}</h3>
                         <p className="text-sm text-brand-text-secondary mt-1 flex-grow">Verifica furos de roteiro e inconsistências.</p>
-                        {scriptIssues.length > 0 && <p className="text-yellow-400 font-bold my-2">{scriptIssues.length} problemas encontrados</p>}
+                        {scriptIssues.length > 0 && isPro && <p className="text-yellow-400 font-bold my-2">{scriptIssues.length} problemas encontrados</p>}
                         <div className="flex gap-2 mt-4">
-                            <button onClick={() => setActiveAnalysis('script')} disabled={isAnalyzing} className="flex-1 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-all">Ver Detalhes</button>
-                            <button onClick={handleAnalyzeScript} disabled={isAnalyzing} className="bg-brand-primary p-2 rounded-lg hover:bg-opacity-90 transition-all"><RefreshIcon className={`w-5 h-5 ${isAnalyzing && activeAnalysis === 'script' ? 'animate-spin' : ''}`} /></button>
+                            <button onClick={() => handleFeatureClick(() => setActiveAnalysis('script'))} className="flex-1 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-all">Ver Detalhes</button>
+                            <button onClick={() => handleFeatureClick(handleAnalyzeScript)} disabled={isAnalyzing && activeAnalysis === 'script'} className="bg-brand-primary p-2 rounded-lg hover:bg-opacity-90 transition-all"><RefreshIcon className={`w-5 h-5 ${isAnalyzing && activeAnalysis === 'script' ? 'animate-spin' : ''}`} /></button>
                         </div>
                     </div>
-                    <div className="bg-brand-surface border border-brand-secondary rounded-lg p-6 flex flex-col">
-                        <h3 className="font-bold text-brand-text-primary">Análise de Repetição</h3>
+                    <div className="bg-brand-surface border border-brand-secondary rounded-lg p-6 flex flex-col relative">
+                         {!isPro && <span className="absolute top-2 right-2 text-xs bg-yellow-500 text-black font-bold px-2 py-1 rounded">PRO</span>}
+                        <h3 className="font-bold text-brand-text-primary flex items-center gap-2">Análise de Repetição {!isPro && <LockClosedIcon className="w-4 h-4 text-yellow-400" />}</h3>
                         <p className="text-sm text-brand-text-secondary mt-1 flex-grow">Encontra palavras e frases repetitivas.</p>
-                        {repetitionIssues.length > 0 && <p className="text-yellow-400 font-bold my-2">{repetitionIssues.length} repetições encontradas</p>}
+                        {repetitionIssues.length > 0 && isPro && <p className="text-yellow-400 font-bold my-2">{repetitionIssues.length} repetições encontradas</p>}
                         <div className="flex gap-2 mt-4">
-                            <button onClick={() => setActiveAnalysis('repetition')} disabled={isAnalyzing} className="flex-1 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-all">Ver Detalhes</button>
-                            <button onClick={handleAnalyzeRepetitions} disabled={isAnalyzing} className="bg-brand-primary p-2 rounded-lg hover:bg-opacity-90 transition-all"><RefreshIcon className={`w-5 h-5 ${isAnalyzing && activeAnalysis === 'repetition' ? 'animate-spin' : ''}`} /></button>
+                            <button onClick={() => handleFeatureClick(() => setActiveAnalysis('repetition'))} className="flex-1 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-all">Ver Detalhes</button>
+                            <button onClick={() => handleFeatureClick(handleAnalyzeRepetitions)} disabled={isAnalyzing && activeAnalysis === 'repetition'} className="bg-brand-primary p-2 rounded-lg hover:bg-opacity-90 transition-all"><RefreshIcon className={`w-5 h-5 ${isAnalyzing && activeAnalysis === 'repetition' ? 'animate-spin' : ''}`} /></button>
                         </div>
                     </div>
                     <div className="bg-brand-surface border border-brand-secondary rounded-lg p-6 flex flex-col">
@@ -121,67 +111,11 @@ const AuthorTools: React.FC = () => {
             {isIdeaHubOpen && <IdeaHub story={activeStory} onClose={() => setIsIdeaHubOpen(false)} />}
 
             {activeAnalysis && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50" onClick={() => setActiveAnalysis(null)}>
-                    <div className="bg-brand-surface rounded-xl border border-brand-secondary w-full max-w-3xl max-h-[90vh] overflow-y-auto p-6" onClick={e => e.stopPropagation()}>
-                        {isAnalyzing && <div className="text-center p-8"><LoadingSpinnerSmall /> <p className="mt-4 text-brand-text-secondary">A IA está lendo sua história...</p></div>}
-                        
-                        {activeAnalysis === 'script' && !isAnalyzing && (
-                            <>
-                                <h2 className="text-2xl font-bold font-serif text-brand-text-primary mb-4">Análise de Continuidade do Roteiro</h2>
-                                {scriptIssues.length > 0 ? (
-                                    <div className="space-y-4">
-                                        {scriptIssues.map((issue, index) => (
-                                            <div key={index} className="bg-brand-background p-4 rounded-lg border border-brand-secondary">
-                                                <p className="font-semibold text-brand-text-primary">{issue.description}</p>
-                                                <p className="text-sm text-brand-text-secondary mt-2"><strong className="text-brand-text-primary">Sugestão:</strong> {issue.suggestion}</p>
-                                                <div className="mt-2 flex flex-wrap gap-2 items-center">
-                                                    <span className="text-xs font-bold text-brand-text-secondary">Capítulos:</span>
-                                                    {issue.involvedChapters.map(chap => <span key={chap} className="text-xs bg-brand-secondary px-2 py-1 rounded-full">{chap}</span>)}
-                                                </div>
-                                                <div className="text-right mt-2">
-                                                    <button onClick={() => handleIgnoreScriptIssue(issue.description)} className="text-xs font-semibold text-brand-text-secondary hover:text-white transition-colors px-3 py-1">Ignorar</button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center p-8">
-                                        <p className="text-lg font-semibold text-brand-text-primary">Nenhum furo de roteiro encontrado!</p>
-                                        <p className="text-brand-text-secondary mt-2">Sua história parece consistente. Bom trabalho!</p>
-                                    </div>
-                                )}
-                            </>
-                        )}
-
-                        {activeAnalysis === 'repetition' && !isAnalyzing && (
-                             <>
-                                <h2 className="text-2xl font-bold font-serif text-brand-text-primary mb-4">Análise de Repetição</h2>
-                                {repetitionIssues.length > 0 ? (
-                                    <div className="space-y-4">
-                                        {repetitionIssues.map((issue, index) => (
-                                            <div key={index} className="bg-brand-background p-4 rounded-lg border border-brand-secondary">
-                                                <p className="font-semibold text-brand-text-primary">Texto repetido: "<span className="italic text-brand-primary">{issue.text}</span>" (encontrado {issue.count} vezes)</p>
-                                                <div className="mt-2 flex flex-wrap gap-2 items-center">
-                                                    <span className="text-xs font-bold text-brand-text-secondary">Capítulos:</span>
-                                                    {issue.locations.map(loc => <span key={loc} className="text-xs bg-brand-secondary px-2 py-1 rounded-full">{loc}</span>)}
-                                                </div>
-                                                 <div className="text-right mt-2">
-                                                    <button onClick={() => handleIgnoreRepetition(issue.text)} className="text-xs font-semibold text-brand-text-secondary hover:text-white transition-colors px-3 py-1">Ignorar</button>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center p-8">
-                                        <p className="text-lg font-semibold text-brand-text-primary">Nenhuma repetição significativa encontrada!</p>
-                                        <p className="text-brand-text-secondary mt-2">Sua prosa parece variada e estilisticamente sólida.</p>
-                                    </div>
-                                )}
-                            </>
-                        )}
-                        <button onClick={() => setActiveAnalysis(null)} className="mt-6 w-full bg-brand-primary text-white font-bold py-2 rounded-lg hover:bg-opacity-90">Fechar</button>
-                    </div>
-                </div>
+                <AnalysisResultsModal
+                    type={activeAnalysis}
+                    isAnalyzing={isAnalyzing}
+                    onClose={() => setActiveAnalysis(null)}
+                />
             )}
         </>
     );

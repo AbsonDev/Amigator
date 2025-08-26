@@ -1,6 +1,6 @@
 
 
-import React, { createContext, useState, useContext, useMemo, useCallback } from 'react';
+import React, { createContext, useState, useContext, useMemo, useCallback, useEffect } from 'react';
 import type { Story } from '../types';
 import useLocalStorage from '../hooks/useLocalStorage';
 import { generateStoryStructure, importStoryFromText } from '../services/geminiService';
@@ -23,12 +23,40 @@ interface StoryContextType {
 
 const StoryContext = createContext<StoryContextType | undefined>(undefined);
 
+const initialAnalysisState = {
+    scriptIssues: { results: [], ignored: [], lastAnalyzed: null },
+    repetitions: { results: [], ignored: [], lastAnalyzed: null },
+};
+
+
 export const StoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [stories, setStories] = useLocalStorage<Story[]>('stories-data', []);
   const [activeStoryId, setActiveStoryId] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Effect to migrate old story data structures on load
+  useEffect(() => {
+    // This check is very lightweight and runs only once.
+    if (stories.length > 0) {
+        const needsMigration = stories.some(story => !story.world || !story.analysis || !story.actionLog || !story.plot);
+        if (needsMigration) {
+            setStories(currentStories => 
+                currentStories.map(story => ({
+                    ...story,
+                    world: story.world || [],
+                    analysis: story.analysis || initialAnalysisState,
+                    actionLog: story.actionLog || [],
+                    chatHistory: story.chatHistory || [],
+                    versions: story.versions || [],
+                    plot: story.plot || { cards: [], connections: [] },
+                }))
+            );
+        }
+    }
+  }, []); // The empty dependency array ensures this runs only once on mount.
+
 
   const activeStory = useMemo(() => stories.find(s => s.id === activeStoryId) || null, [stories, activeStoryId]);
 

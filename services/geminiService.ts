@@ -1,7 +1,7 @@
 
 
 import { GoogleGenAI, Type } from "@google/genai";
-import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory, StoryContent, Relationship } from '../types';
+import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory, StoryContent, Relationship, PlotCard } from '../types';
 
 if (!process.env.API_KEY) {
   throw new Error("API_KEY environment variable not set");
@@ -10,7 +10,7 @@ if (!process.env.API_KEY) {
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const GEMINI_FLASH_MODEL = 'gemini-2.5-flash';
-const IMAGEN_MODEL = 'imagen-3.0-generate-002';
+const IMAGEN_MODEL = 'imagen-4.0-generate-001';
 
 // Helper to strip HTML tags for AI processing
 const stripHtml = (html: string) => {
@@ -95,7 +95,8 @@ export const extractCharacterAppearance = async (fullText: string, characterName
 };
 
 
-export const generateCharacterAvatar = async (appearance: string, genre: string, style: string): Promise<string> => {
+export const generateCharacterAvatar = async (appearance: string, genre: string, style: string): Promise<{ success: boolean; url: string; error?: string; }> => {
+  const fallbackUrl = `https://picsum.photos/seed/${appearance.replace(/\s/g, '').slice(0, 10)}/200`;
   const prompt = `
     Crie um retrato de personagem, focado no rosto e ombros, no estilo de ${style}.
     Gênero da história: ${genre}.
@@ -114,18 +115,19 @@ export const generateCharacterAvatar = async (appearance: string, genre: string,
       },
     });
 
-    // Add robust checking for the response
     if (response?.generatedImages?.length > 0 && response.generatedImages[0].image?.imageBytes) {
         const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
-        return `data:image/jpeg;base64,${base64ImageBytes}`;
+        return { success: true, url: `data:image/jpeg;base64,${base64ImageBytes}` };
     } else {
-        // Throw an error to be caught and handled by the catch block, which provides a fallback image.
-        throw new Error("A geração de imagens da API não retornou uma imagem válida.");
+        throw new Error("A API não retornou uma imagem válida.");
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error generating character avatar:", error);
-    // Return a fallback image on error
-    return `https://picsum.photos/seed/${appearance.replace(/\s/g, '').slice(0, 10)}/200`;
+    let errorMessage = "Falha ao gerar o avatar. Usando uma imagem de fallback.";
+    if (error.message && (error.message.includes("quota") || error.message.includes("RESOURCE_EXHAUSTED"))) {
+        errorMessage = "Cota de geração de imagens excedida. Usando uma imagem de fallback.";
+    }
+    return { success: false, url: fallbackUrl, error: errorMessage };
   }
 };
 
@@ -199,20 +201,19 @@ export const generateStoryStructure = async (genre: string, theme: string, userP
     const storyData = JSON.parse(response.text);
     const fullText = storyData.chapters.map((c: Chapter) => c.content).join('\n\n');
 
-    const charactersWithDetails = await Promise.all(
-        storyData.characters.map(async (char: Omit<Character, 'id' | 'avatarUrl' | 'appearance' | 'narrativeArc' | 'relationships'>, index: number) => {
-            const appearance = await extractCharacterAppearance(fullText, char.name);
-            const avatarUrl = await generateCharacterAvatar(appearance, genre, "Arte Digital");
-            return {
-                ...char,
-                id: `char-${Date.now()}-${index}`,
-                appearance,
-                avatarUrl,
-                narrativeArc: "",
-                relationships: [],
-            };
-        })
-    );
+    const charactersWithDetails = [];
+    for (const [index, char] of storyData.characters.entries()) {
+        const appearance = await extractCharacterAppearance(fullText, char.name);
+        const avatarResult = await generateCharacterAvatar(appearance, genre, "Arte Digital");
+        charactersWithDetails.push({
+            ...char,
+            id: `char-${Date.now()}-${index}`,
+            appearance,
+            avatarUrl: avatarResult.url,
+            narrativeArc: "",
+            relationships: [],
+        });
+    }
     
     // Augment data with IDs and placeholders
     const storyWithIds: Story = {
@@ -233,6 +234,7 @@ export const generateStoryStructure = async (genre: string, theme: string, userP
         { id: `log-${Date.now()}`, timestamp: new Date().toISOString(), actor: 'user', action: 'História criada com IA.' }
       ],
       autosaveEnabled: false,
+      plot: { cards: [], connections: [] },
     };
 
     return storyWithIds;
@@ -524,20 +526,19 @@ export const importStoryFromText = async (textContent: string): Promise<Story> =
     let jsonString = response.text.trim();
     const storyData = JSON.parse(jsonString);
 
-    const charactersWithDetails = await Promise.all(
-        storyData.characters.map(async (char: Omit<Character, 'id' | 'avatarUrl' | 'appearance' | 'narrativeArc' | 'relationships'>, index: number) => {
-            const appearance = await extractCharacterAppearance(textContent, char.name);
-            const avatarUrl = await generateCharacterAvatar(appearance, storyData.genre, "Arte Digital");
-            return {
-                ...char,
-                id: `char-${Date.now()}-${index}`,
-                appearance,
-                avatarUrl,
-                narrativeArc: "",
-                relationships: [],
-            };
-        })
-    );
+    const charactersWithDetails = [];
+    for (const [index, char] of storyData.characters.entries()) {
+        const appearance = await extractCharacterAppearance(textContent, char.name);
+        const avatarResult = await generateCharacterAvatar(appearance, storyData.genre, "Arte Digital");
+        charactersWithDetails.push({
+            ...char,
+            id: `char-${Date.now()}-${index}`,
+            appearance,
+            avatarUrl: avatarResult.url,
+            narrativeArc: "",
+            relationships: [],
+        });
+    }
 
     const storyWithIds: Story = {
       id: `story-${Date.now()}`,
@@ -561,6 +562,7 @@ export const importStoryFromText = async (textContent: string): Promise<Story> =
         { id: `log-${Date.now()}`, timestamp: new Date().toISOString(), actor: 'user', action: 'História importada de um arquivo.' }
       ],
       autosaveEnabled: false,
+      plot: { cards: [], connections: [] },
     };
     return storyWithIds;
 
@@ -837,5 +839,72 @@ export const suggestCharacterRelationships = async (story: Story, characterId: s
     } catch (error) {
         console.error("Error suggesting character relationships:", error);
         throw new Error("Falha ao sugerir relacionamentos. Tente novamente.");
+    }
+};
+
+const plotPointsSchema = {
+    type: Type.ARRAY,
+    items: {
+        type: Type.OBJECT,
+        properties: {
+            title: { type: Type.STRING, description: 'Um título curto e descritivo para o ponto da trama (máximo 5 palavras).' },
+            description: { type: Type.STRING, description: 'Uma descrição detalhada do evento ou cena (2-3 frases).' },
+            chapterId: { type: Type.STRING, description: 'O ID do capítulo correspondente.' },
+            characterNames: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: 'Uma lista dos nomes dos personagens principais envolvidos neste ponto da trama.'
+            }
+        },
+        required: ["title", "description", "chapterId", "characterNames"]
+    }
+};
+
+export const suggestPlotPointsFromSummaries = async (story: Story): Promise<Omit<PlotCard, 'id' | 'position'>[]> => {
+    const chapterContext = story.chapters.map(c => `- ID do Capítulo: ${c.id}\n- Título: ${c.title}\n- Resumo: ${c.summary}\n`).join('\n');
+    const characterContext = story.characters.map(c => `- ID: ${c.id}\n- Nome: ${c.name}`).join('\n');
+
+    const prompt = `
+        Aja como um roteirista. Analise os resumos dos capítulos de uma história e divida-os em pontos de trama ou cenas principais.
+        Para cada ponto da trama, forneça um título curto, uma descrição detalhada, o ID do capítulo correspondente e os nomes dos personagens envolvidos.
+        Retorne os resultados em um array JSON.
+
+        Personagens disponíveis (com IDs):
+        ---
+        ${characterContext}
+        ---
+
+        Capítulos (com IDs e resumos):
+        ---
+        ${chapterContext}
+        ---
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: GEMINI_FLASH_MODEL,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: plotPointsSchema,
+            },
+        });
+        const results = JSON.parse(response.text);
+
+        const characterNameToIdMap = new Map(story.characters.map(c => [c.name.toLowerCase(), c.id]));
+
+        // Map AI response to PlotCard structure
+        return results.map((r: any) => ({
+            title: r.title,
+            description: r.description,
+            chapterId: r.chapterId,
+            characterIds: (r.characterNames || [])
+                .map((name: string) => characterNameToIdMap.get(name.toLowerCase()))
+                .filter(Boolean) as string[],
+        }));
+
+    } catch (error) {
+        console.error("Error suggesting plot points:", error);
+        throw new Error("Falha ao sugerir pontos de trama. Tente novamente.");
     }
 };
