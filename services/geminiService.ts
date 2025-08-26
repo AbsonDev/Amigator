@@ -1,7 +1,7 @@
 
 
 import { GoogleGenAI, Type } from "@google/genai";
-import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory, StoryContent, Relationship, PlotCard, PacingPoint, CharacterVoiceDeviation } from '../types';
+import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory, StoryContent, Relationship, PlotCard, PacingPoint, CharacterVoiceDeviation, ShowDontTellSuggestion } from '../types';
 
 if (!process.env.API_KEY) {
   throw new Error("API_KEY environment variable not set");
@@ -1055,5 +1055,94 @@ export const chatWithCharacter = async (story: Story, character: Character, conv
     } catch (error) {
         console.error("Error with character chat:", error);
         throw new Error("O personagem parece estar perdido em pensamentos. Tente novamente.");
+    }
+};
+
+const showDontTellSchema = {
+    type: Type.ARRAY,
+    items: {
+        type: Type.OBJECT,
+        properties: {
+            originalText: { type: Type.STRING, description: 'A frase exata do texto original que está "contando" em vez de "mostrando".' },
+            suggestions: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING },
+                description: 'Uma lista de 2-3 alternativas reescritas que "mostram" a emoção ou estado.'
+            },
+            explanation: { type: Type.STRING, description: 'Uma breve explicação do porquê a frase original é considerada "contada" (telling).' }
+        },
+        required: ["originalText", "suggestions", "explanation"]
+    }
+};
+
+export const analyzeShowDontTell = async (text: string): Promise<ShowDontTellSuggestion[]> => {
+    const prompt = `
+        Aja como um coach de escrita criativa experiente, focado na regra "Mostre, não conte" (Show, don't tell).
+        Analise o seguinte texto em busca de frases que "contam" emoções, sentimentos ou qualidades em vez de "mostrá-las" através de ações, diálogos ou detalhes sensoriais.
+        Concentre-se em frases como "ela estava triste", "ele sentiu raiva", "a sala era luxuosa".
+        Para cada frase "contada" que você identificar, forneça de 2 a 3 alternativas reescritas que "mostram" vividamente a mesma ideia.
+        Retorne suas descobertas no formato JSON solicitado. Se nenhum problema for encontrado, retorne uma matriz vazia.
+
+        Texto para analisar:
+        ---
+        ${stripHtml(text)}
+        ---
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: GEMINI_FLASH_MODEL,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: showDontTellSchema,
+            },
+        });
+        return JSON.parse(response.text);
+    } catch (error) {
+        console.error("Error analyzing for 'Show, Don't Tell':", error);
+        throw new Error("Falha ao analisar o texto em busca de oportunidades de 'Mostrar, não contar'. Tente novamente.");
+    }
+};
+
+const loreConsistencySchema = {
+    type: Type.OBJECT,
+    properties: {
+        isContradictory: { type: Type.BOOLEAN, description: 'True se a frase contradiz a lore, senão false.' },
+        explanation: { type: Type.STRING, description: 'Uma breve explicação da contradição. Nulo se não for contraditório.' }
+    },
+    required: ["isContradictory", "explanation"]
+};
+
+export const checkLoreConsistency = async (sentence: string, entityName: string, entityLore: string): Promise<{ isContradictory: boolean; explanation: string | null }> => {
+    const prompt = `
+        Aja como um editor de continuidade meticuloso. Sua tarefa é determinar se a "Frase do Manuscrito" contradiz a "Ficha de Lore Oficial" para uma entidade específica.
+        Concentre-se APENAS em contradições factuais diretas (ex: cor dos olhos, status de vivo/morto, posse de um item). Se a frase for vaga ou não contiver informações contraditórias, não é uma contradição.
+
+        - Nome da Entidade: "${entityName}"
+        - Ficha de Lore Oficial: "${entityLore}"
+        - Frase do Manuscrito para Verificar: "${sentence}"
+
+        Responda APENAS com um objeto JSON.
+    `;
+    
+    try {
+        const response = await ai.models.generateContent({
+            model: GEMINI_FLASH_MODEL,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: loreConsistencySchema,
+            },
+        });
+        const result = JSON.parse(response.text);
+        return {
+            isContradictory: result.isContradictory,
+            explanation: result.explanation || null
+        };
+    } catch (error) {
+        console.error("Error checking lore consistency:", error);
+        // Em caso de erro, assuma que não há contradição para evitar falsos positivos
+        return { isContradictory: false, explanation: null };
     }
 };

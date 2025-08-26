@@ -180,3 +180,9 @@ export interface GrammarSuggestion {
   suggestedText: string;
   explanation: string;
 }
+
+export interface ShowDontTellSuggestion {
+  originalText: string;
+  suggestions: string[];
+  explanation: string;
+}

@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import type { Chapter, Version, StoryContent, WorldEntry, Character } from '../types';
+import type { Chapter, Version, StoryContent, WorldEntry, Character, ShowDontTellSuggestion } from '../types';
 import { 
     SparklesIcon, ClipboardIcon, TextSelectIcon, GrammarIcon, WandSparklesIcon,
-    BoldIcon, ItalicIcon, UnderlineIcon, ListBulletIcon, ListOrderedIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon
+    BoldIcon, ItalicIcon, UnderlineIcon, ListBulletIcon, ListOrderedIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon, EyeIcon
 } from './Icons';
 import { useStory } from '../context/StoryContext';
-import { continueWriting, formatTextWithAI } from '../../services/geminiService';
+import { continueWriting, formatTextWithAI, analyzeShowDontTell, checkLoreConsistency } from '../../services/geminiService';
 import FeedbackModal from './editor/FeedbackModal';
 import ModifyTextModal from './editor/ModifyTextModal';
 import GrammarModal from './editor/GrammarModal';
@@ -32,23 +32,62 @@ type WorldEntity = {
     category: string;
 };
 
-interface WorldEntityPopoverProps {
-    entity: WorldEntity;
+interface InfoPopoverProps {
+    entity: WorldEntity | null;
+    inconsistency: string | null;
     position: { top: number; left: number };
 }
 
-const WorldEntityPopover: React.FC<WorldEntityPopoverProps> = ({ entity, position }) => (
+const InfoPopover: React.FC<InfoPopoverProps> = ({ entity, inconsistency, position }) => (
     <div 
         className="fixed z-20 bg-brand-surface p-4 rounded-lg border border-brand-secondary shadow-xl w-full max-w-sm text-sm transition-opacity duration-200"
         style={{ top: position.top, left: position.left, transform: 'translateY(10px)' }}
     >
-        <div className="flex justify-between items-center mb-2">
-            <h4 className="font-bold text-brand-text-primary">{entity.name}</h4>
-            <span className="text-xs bg-brand-primary/20 text-brand-primary font-semibold px-2 py-0.5 rounded-full">{entity.category}</span>
-        </div>
-        <p className="text-brand-text-secondary font-serif text-xs max-h-40 overflow-y-auto">{entity.description}</p>
+        {inconsistency ? (
+            <div>
+                <h4 className="font-bold text-red-400">Inconsistência de Continuidade</h4>
+                <p className="text-brand-text-secondary font-serif text-xs mt-2">{inconsistency}</p>
+            </div>
+        ) : entity ? (
+            <div>
+                <div className="flex justify-between items-center mb-2">
+                    <h4 className="font-bold text-brand-text-primary">{entity.name}</h4>
+                    <span className="text-xs bg-brand-primary/20 text-brand-primary font-semibold px-2 py-0.5 rounded-full">{entity.category}</span>
+                </div>
+                <p className="text-brand-text-secondary font-serif text-xs max-h-40 overflow-y-auto">{entity.description}</p>
+            </div>
+        ) : null}
     </div>
 );
+
+
+// --- Show, Don't Tell Popover Component ---
+interface SdtPopoverProps {
+    suggestion: ShowDontTellSuggestion;
+    position: { top: number; left: number };
+    onSelect: (replacement: string) => void;
+}
+
+const SdtPopover: React.FC<SdtPopoverProps> = ({ suggestion, position, onSelect }) => (
+    <div
+        className="fixed z-30 bg-brand-surface p-4 rounded-lg border border-brand-secondary shadow-xl w-full max-w-md text-sm transition-opacity duration-200"
+        style={{ top: position.top, left: position.left, transform: 'translateY(10px)' }}
+    >
+        <p className="text-xs text-brand-text-secondary mb-2 italic">"{suggestion.explanation}"</p>
+        <div className="space-y-2">
+            {suggestion.suggestions.map((text, index) => (
+                <button
+                    key={index}
+                    onClick={() => onSelect(text)}
+                    className="w-full text-left p-2 rounded-md bg-brand-secondary/50 hover:bg-brand-primary/30 transition-colors font-serif text-brand-text-primary"
+                >
+                    {text}
+                </button>
+            ))}
+        </div>
+    </div>
+);
+
 
 // --- Formatting Toolbar Component ---
 const FormattingToolbar: React.FC<{ onMagicFormat: () => void, isFormatting: boolean }> = ({ onMagicFormat, isFormatting }) => {
@@ -96,12 +135,19 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
   // Loading states
   const [isLoadingContinue, setIsLoadingContinue] = useState(false);
   const [isFormatting, setIsFormatting] = useState(false);
+  const [isAnalyzingSdt, setIsAnalyzingSdt] = useState(false);
   
   // Modal states
   const [activeModal, setActiveModal] = useState<'feedback' | 'modify' | 'grammar' | null>(null);
 
   // World-Building state
-  const [popover, setPopover] = useState<{ visible: boolean; position: { top: number; left: number }; entity: WorldEntity | null }>({ visible: false, position: { top: 0, left: 0 }, entity: null });
+  const [popover, setPopover] = useState<{ visible: boolean; position: { top: number; left: number }; entity: WorldEntity | null, inconsistency: string | null }>({ visible: false, position: { top: 0, left: 0 }, entity: null, inconsistency: null });
+  const [inconsistencies, setInconsistencies] = useState<Map<string, string>>(new Map()); // Key: entityId, Value: explanation
+
+  // Show, Don't Tell state
+  const [isSdtModeActive, setIsSdtModeActive] = useState(false);
+  const [sdtSuggestions, setSdtSuggestions] = useState<ShowDontTellSuggestion[]>([]);
+  const [sdtPopover, setSdtPopover] = useState<{ visible: boolean; position: { top: number; left: number }; suggestion: ShowDontTellSuggestion | null; range: Range | null; }>({ visible: false, position: { top: 0, left: 0 }, suggestion: null, range: null });
 
   const worldEntities = useMemo<WorldEntity[]>(() => {
     if (!activeStory) return [];
@@ -163,19 +209,64 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
     [activeStory?.autosaveEnabled, chapter.id, updateActiveStory]
   );
   
+  const runConsistencyCheck = useCallback(debounce(async (paragraphNode: HTMLElement) => {
+    const sentence = paragraphNode.textContent || "";
+    if (sentence.length < 10) return; // Avoid checking very short texts
+
+    const entityMap = new Map(worldEntities.map(e => [e.name.toLowerCase(), e]));
+    const mentionedEntities = worldEntities.filter(e => new RegExp(`\\b${e.name}\\b`, 'i').test(sentence));
+    
+    for (const entity of mentionedEntities) {
+        const result = await checkLoreConsistency(sentence, entity.name, entity.description);
+        const spansInParagraph = paragraphNode.querySelectorAll<HTMLElement>(`[data-entity-id='${entity.id}']`);
+        
+        if (result.isContradictory && result.explanation) {
+            setInconsistencies(prev => new Map(prev).set(entity.id, result.explanation as string));
+            spansInParagraph.forEach(span => {
+                span.classList.remove('world-entry-highlight');
+                span.classList.add('lore-inconsistency-highlight');
+            });
+        } else {
+            setInconsistencies(prev => {
+                const newMap = new Map(prev);
+                if (newMap.has(entity.id)) {
+                    newMap.delete(entity.id);
+                }
+                return newMap;
+            });
+            spansInParagraph.forEach(span => {
+                span.classList.add('world-entry-highlight');
+                span.classList.remove('lore-inconsistency-highlight');
+            });
+        }
+    }
+  }, 2000), [worldEntities]);
+
+
   const highlightTerms = useCallback(debounce(() => {
     if (!editorRef.current || worldEntities.length === 0) return;
     
     const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const entityNames = worldEntities.map(e => escapeRegExp(e.name)).sort((a,b) => b.length - a.length); // Sort to match longest names first
+    const entityNames = worldEntities.map(e => escapeRegExp(e.name)).sort((a,b) => b.length - a.length);
     const regex = new RegExp(`\\b(${entityNames.join('|')})\\b`, 'gi');
     const entityMap = new Map(worldEntities.map(e => [e.name.toLowerCase(), e]));
+
+    const unwrapHighlights = (container: HTMLElement) => {
+        container.querySelectorAll('span.world-entry-highlight, span.lore-inconsistency-highlight').forEach(span => {
+            const parent = span.parentNode;
+            if (parent) {
+                while (span.firstChild) parent.insertBefore(span.firstChild, span);
+                parent.removeChild(span);
+                parent.normalize();
+            }
+        });
+    };
 
     const walk = (node: Node) => {
         if (node.nodeType === Node.TEXT_NODE) {
             const textContent = node.textContent;
             if (textContent && regex.test(textContent)) {
-                if (node.parentElement?.closest('.world-entry-highlight')) return;
+                if (node.parentElement?.closest('.world-entry-highlight, .lore-inconsistency-highlight')) return;
 
                 const fragment = document.createDocumentFragment();
                 let lastIndex = 0;
@@ -187,8 +278,8 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
                     const entity = entityMap.get(match.toLowerCase());
                     if (entity) {
                         const span = document.createElement('span');
-                        span.className = 'world-entry-highlight';
-                        span.dataset.entryId = entity.id;
+                        span.className = inconsistencies.has(entity.id) ? 'lore-inconsistency-highlight' : 'world-entry-highlight';
+                        span.dataset.entityId = entity.id;
                         span.textContent = match;
                         fragment.appendChild(span);
                     }
@@ -208,22 +299,9 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
         }
     };
     
-    const unwrapHighlights = (container: HTMLElement) => {
-        container.querySelectorAll('span.world-entry-highlight').forEach(span => {
-            const parent = span.parentNode;
-            if (parent) {
-                while (span.firstChild) {
-                    parent.insertBefore(span.firstChild, span);
-                }
-                parent.removeChild(span);
-                parent.normalize(); // Merges adjacent text nodes
-            }
-        });
-    };
-    
     unwrapHighlights(editorRef.current);
     walk(editorRef.current);
-  }, 500), [worldEntities]);
+  }, 500), [worldEntities, inconsistencies]);
 
 
   const handleInput = useCallback(() => {
@@ -233,8 +311,19 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
       setWordCount(text.split(/\s+/).filter(Boolean).length);
       debouncedAutosave(currentContent);
       highlightTerms();
+      if(isSdtModeActive) {
+          setIsSdtModeActive(false); 
+          setSdtSuggestions([]);
+          unwrapSdtHighlights(editorRef.current);
+      }
+      
+      const selection = window.getSelection();
+      const parentParagraph = selection?.anchorNode?.parentElement?.closest('p');
+      if(parentParagraph) {
+        runConsistencyCheck(parentParagraph);
+      }
     }
-  }, [debouncedAutosave, highlightTerms]);
+  }, [debouncedAutosave, highlightTerms, isSdtModeActive, runConsistencyCheck]);
 
   const handleSave = () => {
     if (!editorRef.current) return;
@@ -258,6 +347,19 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
         setSelectedText('');
     }
   }, []);
+  
+  const unwrapSdtHighlights = (container: HTMLElement) => {
+      container.querySelectorAll('span.telling-sentence-highlight').forEach(span => {
+          const parent = span.parentNode;
+          if (parent) {
+              while (span.firstChild) {
+                  parent.insertBefore(span.firstChild, span);
+              }
+              parent.removeChild(span);
+              parent.normalize();
+          }
+      });
+  };
 
   useEffect(() => {
       document.addEventListener('selectionchange', handleSelectionChange);
@@ -265,22 +367,31 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
       
       const handleMouseOver = (e: MouseEvent) => {
           const target = e.target as HTMLElement;
-          const highlight = target.closest<HTMLElement>('.world-entry-highlight');
-          if (highlight?.dataset.entryId) {
-              const entity = worldEntities.find(we => we.id === highlight.dataset.entryId);
-              if (entity) {
-                  const rect = highlight.getBoundingClientRect();
-                  setPopover({ visible: true, entity, position: { top: rect.bottom, left: rect.left } });
+          const highlight = target.closest<HTMLElement>('.world-entry-highlight, .lore-inconsistency-highlight');
+          
+          if (highlight?.dataset.entityId) {
+              const entity = worldEntities.find(we => we.id === highlight.dataset.entityId);
+              const inconsistency = inconsistencies.get(highlight.dataset.entityId) || null;
+              const rect = highlight.getBoundingClientRect();
+              setPopover({ visible: true, entity: entity || null, inconsistency, position: { top: rect.bottom, left: rect.left } });
+          }
+
+          const sdtHighlight = target.closest<HTMLElement>('.telling-sentence-highlight');
+          if (isSdtModeActive && sdtHighlight && sdtHighlight.textContent) {
+              const originalText = sdtHighlight.textContent;
+              const suggestion = sdtSuggestions.find(s => s.originalText === originalText);
+              if(suggestion) {
+                  const range = document.createRange();
+                  range.selectNodeContents(sdtHighlight);
+                  const rect = sdtHighlight.getBoundingClientRect();
+                  setSdtPopover({ visible: true, suggestion, range, position: { top: rect.bottom, left: rect.left } });
               }
           }
       };
 
       const handleMouseOut = (e: MouseEvent) => {
-          const target = e.target as HTMLElement;
-          const highlight = target.closest<HTMLElement>('.world-entry-highlight');
-          if (highlight) {
-              setPopover(p => ({ ...p, visible: false }));
-          }
+        setPopover(p => ({ ...p, visible: false }));
+        setSdtPopover(p => ({ ...p, visible: false, range: null }));
       };
 
       editorDiv?.addEventListener('mouseover', handleMouseOver);
@@ -294,8 +405,9 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
           editorDiv?.removeEventListener('mouseout', handleMouseOut);
           debouncedAutosave.cancel();
           highlightTerms.cancel();
+          runConsistencyCheck.cancel();
       };
-  }, [handleSelectionChange, debouncedAutosave, highlightTerms, worldEntities]);
+  }, [handleSelectionChange, debouncedAutosave, highlightTerms, worldEntities, isSdtModeActive, sdtSuggestions, runConsistencyCheck, inconsistencies]);
 
   const handleContinueWriting = async () => {
     if (!editorRef.current) return;
@@ -327,6 +439,101 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
     }
   };
   
+  const handleAnalyzeSdt = async () => {
+      if (!editorRef.current) return;
+      setIsAnalyzingSdt(true);
+      try {
+          const results = await analyzeShowDontTell(stripHtml(editorRef.current.innerHTML));
+          setSdtSuggestions(results);
+          highlightTellingSentences(results);
+      } catch (error) {
+          alert((error as Error).message);
+          setIsSdtModeActive(false);
+      } finally {
+          setIsAnalyzingSdt(false);
+      }
+  };
+
+  const handleToggleSdtMode = () => {
+    if(isSdtModeActive) {
+      setIsSdtModeActive(false);
+      setSdtSuggestions([]);
+      if(editorRef.current) unwrapSdtHighlights(editorRef.current);
+    } else {
+      setIsSdtModeActive(true);
+      handleAnalyzeSdt();
+    }
+  };
+
+  const highlightTellingSentences = (suggestions: ShowDontTellSuggestion[]) => {
+      if (!editorRef.current || suggestions.length === 0) return;
+
+      const unwrapContainer = (container: HTMLElement) => {
+        container.querySelectorAll('span.telling-sentence-highlight').forEach(span => {
+            const parent = span.parentNode;
+            if (parent) {
+                while (span.firstChild) parent.insertBefore(span.firstChild, span);
+                parent.removeChild(span);
+                parent.normalize();
+            }
+        });
+      };
+      
+      unwrapContainer(editorRef.current);
+      
+      const phrases = suggestions.map(s => s.originalText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      const regex = new RegExp(`(${phrases})`, 'g');
+
+      const walk = (node: Node) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+              const textContent = node.textContent;
+              if (textContent && regex.test(textContent)) {
+                  if (node.parentElement?.closest('.telling-sentence-highlight')) return;
+
+                  const fragment = document.createDocumentFragment();
+                  let lastIndex = 0;
+                  textContent.replace(regex, (match, ...args) => {
+                      const offset = args[args.length - 2];
+                      if (offset > lastIndex) {
+                          fragment.appendChild(document.createTextNode(textContent.substring(lastIndex, offset)));
+                      }
+                      const span = document.createElement('span');
+                      span.className = 'telling-sentence-highlight';
+                      span.textContent = match;
+                      fragment.appendChild(span);
+                      lastIndex = offset + match.length;
+                      return match;
+                  });
+                  if (lastIndex < textContent.length) {
+                      fragment.appendChild(document.createTextNode(textContent.substring(lastIndex)));
+                  }
+                  if (fragment.childNodes.length > 0) {
+                      node.parentElement?.replaceChild(fragment, node);
+                  }
+              }
+          } else if (node.nodeType === Node.ELEMENT_NODE) {
+              Array.from(node.childNodes).forEach(walk);
+          }
+      };
+
+      walk(editorRef.current);
+  };
+  
+  const handleSelectSdtSuggestion = (replacementText: string) => {
+    if (sdtPopover.range) {
+        sdtPopover.range.deleteContents();
+        sdtPopover.range.insertNode(document.createTextNode(replacementText));
+        setSdtPopover({ visible: false, suggestion: null, range: null, position: {top: 0, left: 0}});
+        
+        // After replacement, deactivate mode to prevent confusion
+        setIsSdtModeActive(false);
+        setSdtSuggestions([]);
+        if(editorRef.current) unwrapSdtHighlights(editorRef.current);
+
+        handleInput(); // Update content
+    }
+  };
+
   const getCurrentContent = () => editorRef.current ? editorRef.current.innerHTML : '';
 
   return (
@@ -356,6 +563,9 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
               <button onClick={() => setActiveModal('grammar')} className="flex items-center gap-2 text-sm bg-brand-secondary px-3 py-1.5 rounded-md hover:bg-brand-primary hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                   <GrammarIcon className="w-4 h-4" /> Verificar Gramática
               </button>
+              <button onClick={handleToggleSdtMode} disabled={isAnalyzingSdt} className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isSdtModeActive ? 'bg-blue-500 text-white' : 'bg-brand-secondary hover:bg-brand-primary hover:text-white'}`}>
+                  {isAnalyzingSdt ? <LoadingButtonSpinner /> : <EyeIcon className="w-4 h-4" />} Modo "Mostre, Não Conte"
+              </button>
           </div>
           
           <div className="flex-grow flex flex-col bg-brand-background border-x border-b border-brand-secondary rounded-b-lg overflow-hidden">
@@ -376,7 +586,8 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
           </div>
       </div>
       
-      {popover.visible && popover.entity && <WorldEntityPopover entity={popover.entity} position={popover.position} />}
+      {popover.visible && (popover.entity || popover.inconsistency) && <InfoPopover entity={popover.entity} inconsistency={popover.inconsistency} position={popover.position} />}
+      {sdtPopover.visible && sdtPopover.suggestion && <SdtPopover suggestion={sdtPopover.suggestion} position={sdtPopover.position} onSelect={handleSelectSdtSuggestion} />}
 
       {activeModal === 'feedback' && <FeedbackModal chapterContent={getCurrentContent()} onClose={() => setActiveModal(null)} />}
       
