@@ -12,7 +12,7 @@ const messages = [
   "Aguardando a inspiração divina...",
 ];
 
-const LoadingSpinner: React.FC = React.memo(() => {
+const LoadingSpinner = () => {
   const [messageIndex, setMessageIndex] = useState(0);
 
   useEffect(() => {
@@ -33,8 +33,6 @@ const LoadingSpinner: React.FC = React.memo(() => {
       </div>
     </div>
   );
-});
-
-LoadingSpinner.displayName = 'LoadingSpinner';
+};
 
 export default LoadingSpinner;

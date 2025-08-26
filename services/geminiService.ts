@@ -1,3 +1,5 @@
+
+
 import { GoogleGenAI, Type } from "@google/genai";
 import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory, StoryContent, Relationship } from '../types';
 
@@ -6,6 +8,9 @@ if (!process.env.API_KEY) {
 }
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+const GEMINI_FLASH_MODEL = 'gemini-2.5-flash';
+const IMAGEN_MODEL = 'imagen-3.0-generate-002';
 
 export const extractCharacterAppearance = async (fullText: string, characterName: string): Promise<string> => {
   const prompt = `
@@ -20,7 +25,7 @@ export const extractCharacterAppearance = async (fullText: string, characterName
   `;
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: GEMINI_FLASH_MODEL,
       contents: prompt,
     });
     return response.text.trim();
@@ -41,17 +46,23 @@ export const generateCharacterAvatar = async (appearance: string, genre: string,
 
   try {
     const response = await ai.models.generateImages({
-      model: 'imagen-3.0-generate-002',
+      model: IMAGEN_MODEL,
       prompt: prompt,
       config: {
         numberOfImages: 1,
-        outputMimeType: 'image/png',
+        outputMimeType: 'image/jpeg',
         aspectRatio: '1:1',
       },
     });
 
-    const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
-    return `data:image/png;base64,${base64ImageBytes}`;
+    // Add robust checking for the response
+    if (response?.generatedImages?.length > 0 && response.generatedImages[0].image?.imageBytes) {
+        const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
+        return `data:image/jpeg;base64,${base64ImageBytes}`;
+    } else {
+        // Throw an error to be caught and handled by the catch block, which provides a fallback image.
+        throw new Error("A geração de imagens da API não retornou uma imagem válida.");
+    }
   } catch (error) {
     console.error("Error generating character avatar:", error);
     // Return a fallback image on error
@@ -118,7 +129,7 @@ export const generateStoryStructure = async (genre: string, theme: string, userP
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: GEMINI_FLASH_MODEL,
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -184,7 +195,7 @@ ${context}
 `;
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: GEMINI_FLASH_MODEL,
       contents: prompt,
     });
     return response.text;
@@ -211,7 +222,7 @@ Retorne apenas o texto modificado, sem comentários ou formatação extra.`;
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: GEMINI_FLASH_MODEL,
       contents: prompt,
     });
     return response.text.trim();
@@ -245,7 +256,7 @@ ${chapterContent}
 `;
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: GEMINI_FLASH_MODEL,
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -297,7 +308,7 @@ export const analyzeScriptContinuity = async (story: Story): Promise<ScriptIssue
 
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -337,7 +348,7 @@ export const checkGrammar = async (text: string): Promise<GrammarSuggestion[]> =
 
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -379,7 +390,7 @@ export const analyzeRepetitions = async (story: Story): Promise<RepetitionIssue[
 
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -443,7 +454,7 @@ export const importStoryFromText = async (textContent: string): Promise<Story> =
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: GEMINI_FLASH_MODEL,
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -515,9 +526,9 @@ const summarizedStoryForAgent = (story: Story): Partial<Story> => {
 const agentResponseSchema = {
     type: Type.OBJECT,
     properties: {
-        conversationalResponse: { 
-            type: Type.STRING, 
-            description: "Sua resposta amigável e conversacional para o usuário. Use formatação Markdown e emojis para clareza." 
+        conversationalResponse: {
+            type: Type.STRING,
+            description: "Sua resposta amigável e conversacional para o usuário. Use formatação Markdown e emojis para clareza."
         },
         updatedStory: {
             type: Type.OBJECT,
@@ -527,59 +538,60 @@ const agentResponseSchema = {
                 title: { type: Type.STRING },
                 genre: { type: Type.STRING },
                 synopsis: { type: Type.STRING },
-                characters: { 
-                    type: Type.ARRAY, 
-                    items: { 
-                        type: Type.OBJECT, 
+                characters: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
                         properties: {
-                            id: {type: Type.STRING}, 
-                            name: {type: Type.STRING}, 
-                            description: {type: Type.STRING}, 
-                            appearance: {type: Type.STRING}, 
-                            role: {type: Type.STRING}, 
-                            avatarUrl: {type: Type.STRING}, 
-                            narrativeArc: {type: Type.STRING}, 
+                            id: { type: Type.STRING },
+                            name: { type: Type.STRING },
+                            description: { type: Type.STRING },
+                            appearance: { type: Type.STRING },
+                            role: { type: Type.STRING },
+                            avatarUrl: { type: Type.STRING },
+                            narrativeArc: { type: Type.STRING },
                             relationships: {
-                                type: Type.ARRAY, 
+                                type: Type.ARRAY,
                                 items: {
-                                    type: Type.OBJECT, 
+                                    type: Type.OBJECT,
                                     properties: {
-                                        characterId: {type: Type.STRING}, 
-                                        type: {type: Type.STRING}, 
-                                        description: {type: Type.STRING}
+                                        characterId: { type: Type.STRING },
+                                        type: { type: Type.STRING },
+                                        description: { type: Type.STRING }
                                     }
                                 }
                             }
                         }
                     }
                 },
-                chapters: { 
-                    type: Type.ARRAY, 
-                    items: { 
-                        type: Type.OBJECT, 
+                chapters: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
                         properties: {
-                            id: {type: Type.STRING}, 
-                            title: {type: Type.STRING}, 
-                            summary: {type: Type.STRING}, 
-                            content: {type: Type.STRING}
+                            id: { type: Type.STRING },
+                            title: { type: Type.STRING },
+                            summary: { type: Type.STRING },
+                            content: { type: Type.STRING }
                         }
                     }
                 },
-                world: { 
-                    type: Type.ARRAY, 
-                    items: { 
-                        type: Type.OBJECT, 
+                world: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
                         properties: {
-                            id: {type: Type.STRING}, 
-                            name: {type: Type.STRING}, 
-                            category: {type: Type.STRING}, 
-                            description: {type: Type.STRING}
+                            id: { type: Type.STRING },
+                            name: { type: Type.STRING },
+                            category: { type: Type.STRING },
+                            description: { type: Type.STRING }
                         }
                     }
                 }
             }
         }
-    }
+    },
+    required: ["conversationalResponse"]
 };
 
 
@@ -609,7 +621,7 @@ export const chatWithAgent = async (story: Story, conversation: Message[], newMe
 
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
@@ -657,7 +669,7 @@ export const generateInspiration = async (type: 'what-if' | 'plot-twist' | 'name
   
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+      model: GEMINI_FLASH_MODEL,
       contents: prompt,
     });
     return response.text.trim();
@@ -684,7 +696,7 @@ const worldEntrySchemaForAnalysis = {
 
 export const analyzeTextForWorldEntries = async (text: string): Promise<Omit<WorldEntry, 'id'>[]> => {
     const prompt = `
-        Aja como um arquivista de mundos. Analise o seguinte texto e identifique substantivos próprios (nomes de pessoas, lugares, organizações, itens específicos, eventos nomeados) que poderiam ser entradas em uma enciclopédia do mundo (lore bible).
+        Aja como um arquivista de mundos. Analise o seguinte texto e identifique substantivos próprios (nomes de pessoas, lugares, organizações, itens específicos, eventos nomeados) que poderiam ser entradas em uma enciclopedias do mundo (lore bible).
         Ignore nomes de personagens já muito comuns e foque em termos únicos do universo.
         Retorne uma lista de sugestões. Se nada for encontrado, retorne uma matriz vazia.
 
@@ -696,16 +708,16 @@ export const analyzeTextForWorldEntries = async (text: string): Promise<Omit<Wor
 
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
                 responseSchema: worldEntrySchemaForAnalysis,
             },
         });
-        const results: WorldEntry[] = JSON.parse(response.text);
+        const results = JSON.parse(response.text);
         // Ensure category is valid
-        return results.filter((r: WorldEntry) => ['Personagem', 'Lugar', 'Item', 'Organização', 'Evento'].includes(r.category));
+        return results.filter((r: any) => ['Personagem', 'Lugar', 'Item', 'Organização', 'Evento'].includes(r.category));
     } catch (error) {
         console.error("Error analyzing text for world entries:", error);
         throw new Error("Falha ao analisar o texto para entradas do mundo. Tente novamente.");
@@ -752,7 +764,7 @@ export const suggestCharacterRelationships = async (story: Story, characterId: s
 
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {
                 responseMimeType: "application/json",

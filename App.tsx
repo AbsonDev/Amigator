@@ -24,7 +24,8 @@ const App: React.FC = () => {
     startNewStory,
     returnToBookshelf,
     createStory,
-    importStory
+    importStory,
+    deleteStory
   } = useStory();
 
   const handleProfileCreate = (newAuthor: Author) => {
@@ -64,6 +65,7 @@ const App: React.FC = () => {
     onSelectStory={selectStory} 
     onStartNewStory={startNewStory} 
     onImportStory={importStory}
+    onDeleteStory={deleteStory}
   />;
 };
 

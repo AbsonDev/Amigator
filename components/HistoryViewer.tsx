@@ -1,7 +1,9 @@
+
 import React, { useState } from 'react';
-import type { Story, Version } from '../types';
+import type { Story, Version, StoryContent } from '../types';
 import { AgentIcon, UserCircleIcon } from './Icons';
 import { useStory } from '../context/StoryContext';
+import ConfirmationModal from './common/ConfirmationModal';
 
 interface HistoryViewerProps {}
 
@@ -11,6 +13,7 @@ const HistoryViewer: React.FC<HistoryViewerProps> = () => {
     const [isSaving, setIsSaving] = useState(false);
     const [versionName, setVersionName] = useState('');
     const [viewingVersion, setViewingVersion] = useState<Version | null>(null);
+    const [versionToRestore, setVersionToRestore] = useState<Version | null>(null);
 
     if (!activeStory) return null;
 
@@ -21,11 +24,21 @@ const HistoryViewer: React.FC<HistoryViewerProps> = () => {
         }
         
         updateActiveStory(prevStory => {
+            const storyStateSnapshot: StoryContent = {
+                title: prevStory.title,
+                genre: prevStory.genre,
+                synopsis: prevStory.synopsis,
+                chapters: prevStory.chapters,
+                world: prevStory.world,
+                // This creates a new array of new character objects with empty avatar URLs for the snapshot
+                characters: prevStory.characters.map(char => ({ ...char, avatarUrl: '' }))
+            };
+
             const newVersion: Version = {
                 id: `ver-${Date.now()}`,
                 name: versionName.trim(),
                 createdAt: new Date().toISOString(),
-                storyState: JSON.parse(JSON.stringify(prevStory)) // Deep clone to snapshot
+                storyState: storyStateSnapshot
             };
             return {
                 ...prevStory,
@@ -37,21 +50,30 @@ const HistoryViewer: React.FC<HistoryViewerProps> = () => {
         setIsSaving(false);
     };
 
-    const handleRestoreVersion = (version: Version) => {
-        if (window.confirm(`Tem certeza que deseja restaurar a versão "${version.name}"? Todas as alterações não salvas na versão atual serão perdidas.`)) {
-            updateActiveStory(prevStory => {
-                const restoredCore = version.storyState;
-                const newStoryState = {
-                    ...prevStory,
-                    ...restoredCore,
-                    id: prevStory.id,
-                    versions: prevStory.versions,
-                    actionLog: [...prevStory.actionLog, { id: `log-${Date.now()}`, timestamp: new Date().toISOString(), actor: 'user' as const, action: `Restaurou a história para a versão '${version.name}'.`}],
-                    autosaveEnabled: prevStory.autosaveEnabled,
+    const confirmRestoreVersion = (version: Version) => {
+        updateActiveStory(prevStory => {
+            const restoredCore = version.storyState;
+            
+            const currentCharactersMap = new Map(prevStory.characters.map(c => [c.id, c]));
+            const mergedCharacters = restoredCore.characters.map(restoredChar => {
+                const currentCharacter = currentCharactersMap.get(restoredChar.id);
+                return {
+                    ...restoredChar,
+                    avatarUrl: currentCharacter ? currentCharacter.avatarUrl : '',
                 };
-                return newStoryState;
             });
-        }
+
+            return {
+                ...prevStory,
+                ...restoredCore,
+                characters: mergedCharacters,
+                id: prevStory.id,
+                versions: prevStory.versions,
+                actionLog: [...prevStory.actionLog, { id: `log-${Date.now()}`, timestamp: new Date().toISOString(), actor: 'user' as const, action: `Restaurou a história para a versão '${version.name}'.`}],
+                autosaveEnabled: prevStory.autosaveEnabled,
+            };
+        });
+        setVersionToRestore(null);
     };
 
     const handleToggleAutosave = () => {
@@ -69,95 +91,106 @@ const HistoryViewer: React.FC<HistoryViewerProps> = () => {
     const sortedVersions = [...activeStory.versions].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return (
-        <div className="p-4 sm:p-6 md:p-8">
-            <h1 className="text-3xl font-bold font-serif text-brand-text-primary mb-2">Versionamento & Histórico</h1>
-            <p className="text-brand-text-secondary mb-6">Acompanhe as alterações e salve pontos de restauração do seu manuscrito.</p>
+        <>
+            <div className="p-4 sm:p-6 md:p-8">
+                <h1 className="text-3xl font-bold font-serif text-brand-text-primary mb-2">Versionamento & Histórico</h1>
+                <p className="text-brand-text-secondary mb-6">Acompanhe as alterações e salve pontos de restauração do seu manuscrito.</p>
 
-            <div className="flex border-b border-brand-secondary mb-6">
-                <button onClick={() => setActiveTab('versions')} className={`px-4 py-2 font-semibold ${activeTab === 'versions' ? 'border-b-2 border-brand-primary text-brand-primary' : 'text-brand-text-secondary'}`}>
-                    Versões Salvas
-                </button>
-                <button onClick={() => setActiveTab('log')} className={`px-4 py-2 font-semibold ${activeTab === 'log' ? 'border-b-2 border-brand-primary text-brand-primary' : 'text-brand-text-secondary'}`}>
-                    Log de Atividades
-                </button>
-            </div>
+                <div className="flex border-b border-brand-secondary mb-6">
+                    <button onClick={() => setActiveTab('versions')} className={`px-4 py-2 font-semibold ${activeTab === 'versions' ? 'border-b-2 border-brand-primary text-brand-primary' : 'text-brand-text-secondary'}`}>
+                        Versões Salvas
+                    </button>
+                    <button onClick={() => setActiveTab('log')} className={`px-4 py-2 font-semibold ${activeTab === 'log' ? 'border-b-2 border-brand-primary text-brand-primary' : 'text-brand-text-secondary'}`}>
+                        Log de Atividades
+                    </button>
+                </div>
 
-            {activeTab === 'versions' && (
-                <div>
-                    <div className="bg-brand-surface p-4 rounded-lg border border-brand-secondary mb-6">
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <h2 className="font-bold text-brand-text-primary">Salvar Versões Automaticamente</h2>
-                                <p className="text-sm text-brand-text-secondary mt-1">Cria uma versão de backup 5 segundos após você parar de digitar no editor.</p>
-                            </div>
-                            <button onClick={handleToggleAutosave} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${activeStory.autosaveEnabled ? 'bg-brand-primary' : 'bg-brand-secondary'}`}>
-                                <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${activeStory.autosaveEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="bg-brand-surface p-4 rounded-lg border border-brand-secondary mb-6">
-                        <h2 className="font-bold text-brand-text-primary">Criar um Ponto de Restauração Manual</h2>
-                        <p className="text-sm text-brand-text-secondary mt-1 mb-3">Salve o estado atual do seu livro como uma versão nomeada para poder restaurá-lo no futuro.</p>
-                         {isSaving ? (
-                            <div className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={versionName}
-                                    onChange={(e) => setVersionName(e.target.value)}
-                                    placeholder="Ex: Primeiro Rascunho Completo"
-                                    className="w-full px-3 py-2 bg-brand-background border border-brand-secondary rounded-lg focus:ring-brand-primary outline-none"
-                                />
-                                <button onClick={handleSaveVersion} className="bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-90">Salvar</button>
-                                <button onClick={() => setIsSaving(false)} className="bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80">Cancelar</button>
-                            </div>
-                        ) : (
-                            <button onClick={() => setIsSaving(true)} className="bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-90 transition-all">
-                                Salvar Versão Manual
-                            </button>
-                        )}
-                    </div>
-                    
-                    <h2 className="text-xl font-bold font-serif mb-4">Histórico de Versões</h2>
-                     {sortedVersions.length > 0 ? (
-                        <div className="space-y-3">
-                            {sortedVersions.map(version => (
-                                <div key={version.id} className="bg-brand-surface p-3 rounded-lg border border-brand-secondary flex justify-between items-center">
-                                    <div>
-                                        <p className={`font-semibold text-brand-text-primary ${version.name.startsWith('Autosave') ? 'italic' : ''}`}>{version.name}</p>
-                                        <p className="text-xs text-brand-text-secondary">Salvo em: {new Date(version.createdAt).toLocaleString()}</p>
-                                    </div>
-                                    <div className="flex gap-2">
-                                        <button onClick={() => setViewingVersion(version)} className="text-sm bg-brand-secondary text-white font-semibold py-1.5 px-3 rounded-md hover:bg-opacity-80">Visualizar</button>
-                                        <button onClick={() => handleRestoreVersion(version)} className="text-sm bg-brand-primary text-white font-semibold py-1.5 px-3 rounded-md hover:bg-opacity-80">Restaurar</button>
-                                    </div>
+                {activeTab === 'versions' && (
+                    <div>
+                        <div className="bg-brand-surface p-4 rounded-lg border border-brand-secondary mb-6">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h2 className="font-bold text-brand-text-primary">Salvar Versões Automaticamente</h2>
+                                    <p className="text-sm text-brand-text-secondary mt-1">Cria uma versão de backup 5 segundos após você parar de digitar no editor.</p>
                                 </div>
-                            ))}
-                        </div>
-                     ) : (
-                        <p className="text-center text-brand-text-secondary py-10">Nenhuma versão salva ainda.</p>
-                     )}
-                </div>
-            )}
-            
-            {activeTab === 'log' && (
-                <div className="space-y-4">
-                    {sortedActionLog.map(log => (
-                        <div key={log.id} className="flex items-center gap-3">
-                            <div className="flex-shrink-0">
-                                {log.actor === 'user' ? <UserCircleIcon className="w-6 h-6 text-brand-text-secondary" /> : <AgentIcon className="w-6 h-6 text-brand-primary" />}
-                            </div>
-                            <div className="flex-grow">
-                                <p className="text-sm text-brand-text-primary">
-                                    <span className={`font-bold ${log.actor === 'agent' ? 'text-brand-primary' : ''}`}>{log.actor === 'user' ? 'Você' : 'Agente IA'}</span> {log.action}
-                                </p>
-                                 <p className="text-xs text-brand-text-secondary">{new Date(log.timestamp).toLocaleString()}</p>
+                                <button onClick={handleToggleAutosave} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${activeStory.autosaveEnabled ? 'bg-brand-primary' : 'bg-brand-secondary'}`}>
+                                    <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${activeStory.autosaveEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
                             </div>
                         </div>
-                    ))}
-                </div>
-            )}
+
+                        <div className="bg-brand-surface p-4 rounded-lg border border-brand-secondary mb-6">
+                            <h2 className="font-bold text-brand-text-primary">Criar um Ponto de Restauração Manual</h2>
+                            <p className="text-sm text-brand-text-secondary mt-1 mb-3">Salve o estado atual do seu livro como uma versão nomeada para poder restaurá-lo no futuro.</p>
+                             {isSaving ? (
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={versionName}
+                                        onChange={(e) => setVersionName(e.target.value)}
+                                        placeholder="Ex: Primeiro Rascunho Completo"
+                                        className="w-full px-3 py-2 bg-brand-background border border-brand-secondary rounded-lg focus:ring-brand-primary outline-none"
+                                    />
+                                    <button onClick={handleSaveVersion} className="bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-90">Salvar</button>
+                                    <button onClick={() => setIsSaving(false)} className="bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80">Cancelar</button>
+                                </div>
+                            ) : (
+                                <button onClick={() => setIsSaving(true)} className="bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-90 transition-all">
+                                    Salvar Versão Manual
+                                </button>
+                            )}
+                        </div>
+                        
+                        <h2 className="text-xl font-bold font-serif mb-4">Histórico de Versões</h2>
+                         {sortedVersions.length > 0 ? (
+                            <div className="space-y-3">
+                                {sortedVersions.map(version => (
+                                    <div key={version.id} className="bg-brand-surface p-3 rounded-lg border border-brand-secondary flex justify-between items-center">
+                                        <div>
+                                            <p className={`font-semibold text-brand-text-primary ${version.name.startsWith('Autosave') ? 'italic' : ''}`}>{version.name}</p>
+                                            <p className="text-xs text-brand-text-secondary">Salvo em: {new Date(version.createdAt).toLocaleString()}</p>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button onClick={() => setViewingVersion(version)} className="text-sm bg-brand-secondary text-white font-semibold py-1.5 px-3 rounded-md hover:bg-opacity-80">Visualizar</button>
+                                            <button onClick={() => setVersionToRestore(version)} className="text-sm bg-brand-primary text-white font-semibold py-1.5 px-3 rounded-md hover:bg-opacity-80">Restaurar</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                         ) : (
+                            <p className="text-center text-brand-text-secondary py-10">Nenhuma versão salva ainda.</p>
+                         )}
+                    </div>
+                )}
+                
+                {activeTab === 'log' && (
+                    <div className="space-y-4">
+                        {sortedActionLog.map(log => (
+                            <div key={log.id} className="flex items-center gap-3">
+                                <div className="flex-shrink-0">
+                                    {log.actor === 'user' ? <UserCircleIcon className="w-6 h-6 text-brand-text-secondary" /> : <AgentIcon className="w-6 h-6 text-brand-primary" />}
+                                </div>
+                                <div className="flex-grow">
+                                    <p className="text-sm text-brand-text-primary">
+                                        <span className={`font-bold ${log.actor === 'agent' ? 'text-brand-primary' : ''}`}>{log.actor === 'user' ? 'Você' : 'Agente IA'}</span> {log.action}
+                                    </p>
+                                     <p className="text-xs text-brand-text-secondary">{new Date(log.timestamp).toLocaleString()}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
             
+            {versionToRestore && (
+                <ConfirmationModal
+                    title={`Restaurar Versão "${versionToRestore.name}"?`}
+                    description="Todas as alterações não salvas na versão atual serão perdidas. Esta ação não pode ser desfeita."
+                    onConfirm={() => confirmRestoreVersion(versionToRestore)}
+                    onCancel={() => setVersionToRestore(null)}
+                />
+            )}
+
             {viewingVersion && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50" onClick={() => setViewingVersion(null)}>
                     <div className="bg-brand-surface rounded-xl border border-brand-secondary w-full max-w-4xl h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -181,7 +214,7 @@ const HistoryViewer: React.FC<HistoryViewerProps> = () => {
                     </div>
                 </div>
             )}
-        </div>
+        </>
     );
 };
 

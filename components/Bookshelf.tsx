@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import type { Author, Story } from '../types';
-import { BookOpenIcon, SparklesIcon, UploadIcon } from './Icons';
+import { BookOpenIcon, SparklesIcon, UploadIcon, TrashIcon } from './Icons';
 import mammoth from 'mammoth';
+import ConfirmationModal from './common/ConfirmationModal';
 
 interface BookshelfProps {
     author: Author;
@@ -9,9 +10,10 @@ interface BookshelfProps {
     onSelectStory: (storyId: string) => void;
     onStartNewStory: () => void;
     onImportStory: (textContent: string) => void;
+    onDeleteStory: (storyId: string) => void;
 }
 
-const StoryCard: React.FC<{ story: Story; onSelect: () => void }> = ({ story, onSelect }) => {
+const StoryCard: React.FC<{ story: Story; onSelect: () => void; onDelete: () => void; }> = ({ story, onSelect, onDelete }) => {
     const pseudoRandomColor = (seed: string) => {
         let hash = 0;
         for (let i = 0; i < seed.length; i++) {
@@ -24,21 +26,34 @@ const StoryCard: React.FC<{ story: Story; onSelect: () => void }> = ({ story, on
     const coverColor = pseudoRandomColor(story.id);
 
     return (
-        <button onClick={onSelect} className="text-left group perspective">
-            <div className="relative w-full h-80 rounded-lg shadow-lg transform-style-3d group-hover:rotate-y-10 transition-transform duration-500">
-                <div style={{ backgroundColor: coverColor, backgroundImage: `linear-gradient(45deg, rgba(255,255,255,0.1) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.1) 75%, transparent 75%, transparent)` }} className="absolute w-full h-full backface-hidden rounded-lg border-2 border-white/20 flex flex-col justify-center items-center p-4 text-center">
-                    <BookOpenIcon className="w-12 h-12 text-white opacity-60 mb-4" />
-                    <h3 className="text-2xl font-bold font-serif text-white [text-shadow:_2px_2px_4px_rgb(0_0_0_/_50%)]">{story.title}</h3>
-                    <p className="text-sm text-white/80 mt-2 italic line-clamp-3">{story.synopsis}</p>
+        <div className="relative group perspective">
+             <button 
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete();
+                }} 
+                className="absolute top-4 right-4 z-20 p-2 rounded-full bg-brand-background/60 text-white hover:bg-red-600/80 backdrop-blur-sm transition-all opacity-0 group-hover:opacity-100"
+                title="Excluir história"
+            >
+                <TrashIcon className="w-5 h-5" />
+            </button>
+            <button onClick={onSelect} className="w-full text-left">
+                <div className="relative w-full h-80 rounded-lg shadow-lg transform-style-3d group-hover:rotate-y-10 transition-transform duration-500">
+                    <div style={{ backgroundColor: coverColor, backgroundImage: `linear-gradient(45deg, rgba(255,255,255,0.1) 25%, transparent 25%, transparent 50%, rgba(255,255,255,0.1) 50%, rgba(255,255,255,0.1) 75%, transparent 75%, transparent)` }} className="absolute w-full h-full backface-hidden rounded-lg border-2 border-white/20 flex flex-col justify-center items-center p-4 text-center">
+                        <BookOpenIcon className="w-12 h-12 text-white opacity-60 mb-4" />
+                        <h3 className="text-2xl font-bold font-serif text-white [text-shadow:_2px_2px_4px_rgb(0_0_0_/_50%)]">{story.title}</h3>
+                        <p className="text-sm text-white/80 mt-2 italic line-clamp-3">{story.synopsis}</p>
+                    </div>
                 </div>
-            </div>
-            <p className="mt-3 font-semibold text-brand-text-primary group-hover:text-brand-primary transition-colors">{story.title}</p>
-        </button>
+                <p className="mt-3 font-semibold text-brand-text-primary group-hover:text-brand-primary transition-colors">{story.title}</p>
+            </button>
+        </div>
     );
 };
 
-const Bookshelf: React.FC<BookshelfProps> = ({ author, stories, onStartNewStory, onSelectStory, onImportStory }) => {
+const Bookshelf: React.FC<BookshelfProps> = ({ author, stories, onStartNewStory, onSelectStory, onImportStory, onDeleteStory }) => {
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [storyToDelete, setStoryToDelete] = useState<Story | null>(null);
     const [fileContent, setFileContent] = useState<string | null>(null);
     const [fileName, setFileName] = useState<string>('');
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -53,17 +68,14 @@ const Bookshelf: React.FC<BookshelfProps> = ({ author, stories, onStartNewStory,
 
         try {
             let textContent = '';
-            // Normalize file extension to lowercase for case-insensitive comparison
-            const fileName = file.name.toLowerCase();
-            
-            if (file.type === "text/plain" || fileName.endsWith('.txt')) {
+            if (file.type === "text/plain") {
                 textContent = await new Promise((resolve, reject) => {
                     const reader = new FileReader();
                     reader.onload = (e) => resolve(e.target?.result as string);
                     reader.onerror = (e) => reject(e);
                     reader.readAsText(file);
                 });
-            } else if (fileName.endsWith('.docx')) {
+            } else if (file.name.endsWith('.docx')) {
                 const arrayBuffer = await new Promise<ArrayBuffer>((resolve, reject) => {
                     const reader = new FileReader();
                     reader.onload = (e) => resolve(e.target?.result as ArrayBuffer);
@@ -79,9 +91,8 @@ const Bookshelf: React.FC<BookshelfProps> = ({ author, stories, onStartNewStory,
             setFileContent(textContent);
             setFileName(file.name);
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
-            console.error("Error processing file:", errorMessage, error);
-            alert(`Erro ao processar o arquivo: ${errorMessage}. Por favor, verifique se o arquivo está no formato correto e tente novamente.`);
+            console.error("Error processing file:", error);
+            alert("Ocorreu um erro ao processar o arquivo. Tente novamente.");
         }
     };
     
@@ -131,7 +142,12 @@ const Bookshelf: React.FC<BookshelfProps> = ({ author, stories, onStartNewStory,
                 {stories.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-8">
                         {stories.map(story => (
-                            <StoryCard key={story.id} story={story} onSelect={() => onSelectStory(story.id)} />
+                            <StoryCard 
+                                key={story.id} 
+                                story={story} 
+                                onSelect={() => onSelectStory(story.id)}
+                                onDelete={() => setStoryToDelete(story)}
+                            />
                         ))}
                     </div>
                 ) : (
@@ -142,6 +158,19 @@ const Bookshelf: React.FC<BookshelfProps> = ({ author, stories, onStartNewStory,
                     </div>
                 )}
             </div>
+            
+            {storyToDelete && (
+              <ConfirmationModal
+                  title={`Excluir "${storyToDelete.title}"?`}
+                  description="Esta ação é permanente e não pode ser desfeita. Todo o conteúdo da história, incluindo capítulos, personagens e versões, será excluído."
+                  confirmText="Sim, Excluir"
+                  onConfirm={() => {
+                      onDeleteStory(storyToDelete.id);
+                      setStoryToDelete(null);
+                  }}
+                  onCancel={() => setStoryToDelete(null)}
+              />
+            )}
 
             {isImportModalOpen && (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50" onClick={handleCloseModal}>

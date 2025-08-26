@@ -1,19 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import type { Author, Chapter } from '../types';
 import { AppView } from '../types';
-import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, AgentIcon, GlobeAltIcon, ArrowDownTrayIcon, ClockIcon, ChevronDoubleLeftIcon, ChartBarIcon, PhotoIcon, FilmIcon, SpeakerWaveIcon } from './Icons';
+import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, AgentIcon, GlobeAltIcon, ArrowDownTrayIcon, ClockIcon, ChevronDoubleLeftIcon } from './Icons';
 import CharacterEditor from './CharacterEditor';
 import ChapterOrganizer from './ChapterOrganizer';
 import ChapterEditor from './ChapterEditor';
-import EnhancedChapterEditor from './EnhancedChapterEditor';
 import AgentChatbot from './AgentChatbot';
 import WorldBuilder from './WorldBuilder';
 import HistoryViewer from './HistoryViewer';
-import AuthorTools from './AuthorTools';
-import AnalyticsDashboard from './AnalyticsDashboard';
-import BookCoverGenerator from './BookCoverGenerator';
-import ScreenplayConverter from './ScreenplayConverter';
-import AudioNarrator from './AudioNarrator';
+import AuthorTools from './dashboard/AuthorTools';
 import { useStory } from '../context/StoryContext';
 import { jsPDF } from 'jspdf';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
@@ -25,12 +20,12 @@ interface DashboardProps {
   goToBookshelf: () => void;
 }
 
-const StatCard: React.FC<{ label: string; value: string | number; }> = React.memo(({ label, value }) => (
+const StatCard: React.FC<{ label: string; value: string | number; }> = ({ label, value }) => (
   <div className="bg-brand-surface p-6 rounded-lg border border-brand-secondary">
     <p className="text-sm font-medium text-brand-text-secondary">{label}</p>
     <p className="text-3xl font-bold text-brand-text-primary mt-1">{value}</p>
   </div>
-));
+);
 
 const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
   const { activeStory, updateActiveStory } = useStory();
@@ -39,7 +34,6 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isChatCollapsed, setIsChatCollapsed] = useState(true);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [isCoverGeneratorOpen, setIsCoverGeneratorOpen] = useState(false);
 
   const wordCount = useMemo(() => {
     if (!activeStory) return 0;
@@ -130,16 +124,10 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
                     <h1 className="text-4xl font-bold font-serif text-brand-text-primary">{activeStory.title}</h1>
                     <p className="text-brand-text-secondary mt-2 max-w-3xl font-serif text-lg">{activeStory.synopsis}</p>
                 </div>
-                <div className="flex gap-3">
-                    <button onClick={() => setIsCoverGeneratorOpen(true)} className="flex-shrink-0 flex items-center gap-2 bg-gradient-to-r from-brand-primary to-purple-600 text-white font-bold py-2 px-4 rounded-lg hover:shadow-lg hover:shadow-brand-primary/30 transition-all">
-                        <PhotoIcon className="w-5 h-5" />
-                        Gerar Capa
-                    </button>
-                    <button onClick={() => setIsExportModalOpen(true)} className="flex-shrink-0 flex items-center gap-2 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-primary transition-all">
-                        <ArrowDownTrayIcon className="w-5 h-5" />
-                        Exportar
-                    </button>
-                </div>
+                <button onClick={() => setIsExportModalOpen(true)} className="flex-shrink-0 flex items-center gap-2 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-brand-primary transition-all">
+                    <ArrowDownTrayIcon className="w-5 h-5" />
+                    Exportar
+                </button>
             </header>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <StatCard label="Contagem de Palavras" value={wordCount} />
@@ -157,12 +145,6 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
         return <WorldBuilder />;
       case AppView.HISTORY:
         return <HistoryViewer />;
-      case AppView.ANALYTICS:
-        return <AnalyticsDashboard />;
-      case AppView.SCREENPLAY:
-        return <ScreenplayConverter />;
-      case AppView.AUDIO_NARRATOR:
-        return <AudioNarrator />;
       default:
         return null;
     }
@@ -191,15 +173,12 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
                     <PencilIcon className="w-8 h-8 text-brand-primary flex-shrink-0" />
                     {!isSidebarCollapsed && <span className="font-bold text-xl">Escritor IA</span>}
                 </div>
-                <nav className="flex flex-col gap-2">
+                <nav id="sidebar-nav" className="flex flex-col gap-2">
                     <NavItem icon={<HomeIcon className="w-5 h-5 flex-shrink-0"/>} label="Painel de Controle" view={AppView.OVERVIEW} />
                     <NavItem icon={<BookOpenIcon className="w-5 h-5 flex-shrink-0"/>} label="Capítulos" view={AppView.CHAPTERS} />
                     <NavItem icon={<UsersIcon className="w-5 h-5 flex-shrink-0"/>} label="Personagens" view={AppView.CHARACTERS} />
                     <NavItem icon={<GlobeAltIcon className="w-5 h-5 flex-shrink-0"/>} label="Mundo" view={AppView.WORLD} />
-                    <NavItem icon={<FilmIcon className="w-5 h-5 flex-shrink-0"/>} label="Roteiro" view={AppView.SCREENPLAY} />
-                    <NavItem icon={<SpeakerWaveIcon className="w-5 h-5 flex-shrink-0"/>} label="Narrador" view={AppView.AUDIO_NARRATOR} />
-                    <NavItem icon={<ChartBarIcon className="w-5 h-5 flex-shrink-0"/>} label="Analytics" view={AppView.ANALYTICS} />
-                    <NavItem icon={<ClockIcon className="w-5 h-5 flex-shrink-0"/>} label="Histórico" view={AppView.HISTORY} />
+                    <NavItem icon={<ClockIcon className="w-5 h-5 flex-shrink-0"/>} label="Versionamento & Histórico" view={AppView.HISTORY} />
                 </nav>
                 <div className="mt-auto space-y-2">
                     <div className={`border-t border-brand-secondary pt-4 text-center ${isSidebarCollapsed ? 'hidden' : ''}`}>
@@ -209,7 +188,12 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
                         </button>
                     </div>
                     <div className={`${isSidebarCollapsed ? 'mt-2' : 'border-t border-brand-secondary pt-2'}`}>
-                      <button onClick={() => setIsSidebarCollapsed(p => !p)} title={isSidebarCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-brand-text-secondary hover:bg-brand-surface hover:text-brand-text-primary ${isSidebarCollapsed ? 'justify-center' : ''}`}>
+                      <button 
+                        onClick={() => setIsSidebarCollapsed(p => !p)} 
+                        title={isSidebarCollapsed ? 'Expandir barra lateral' : 'Recolher barra lateral'}
+                        aria-controls="sidebar-nav"
+                        aria-expanded={!isSidebarCollapsed}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-brand-text-secondary hover:bg-brand-surface hover:text-brand-text-primary ${isSidebarCollapsed ? 'justify-center' : ''}`}>
                           <ChevronDoubleLeftIcon className={`w-5 h-5 flex-shrink-0 transition-transform duration-300 ${isSidebarCollapsed ? 'rotate-180' : ''}`} />
                           {!isSidebarCollapsed && <span className="flex-1 text-left">Recolher</span>}
                       </button>
@@ -245,13 +229,6 @@ const Dashboard: React.FC<DashboardProps> = ({ author, goToBookshelf }) => {
                     </div>
                 </div>
             </div>
-        )}
-        
-        {isCoverGeneratorOpen && (
-            <BookCoverGenerator 
-                authorName={author.name}
-                onClose={() => setIsCoverGeneratorOpen(false)}
-            />
         )}
     </>
   );
