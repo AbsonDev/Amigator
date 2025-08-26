@@ -1,11 +1,11 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import type { Chapter, Version, StoryContent } from '../types';
+import type { Chapter, Version, StoryContent, WorldEntry, Character } from '../types';
 import { 
     SparklesIcon, ClipboardIcon, TextSelectIcon, GrammarIcon, WandSparklesIcon,
     BoldIcon, ItalicIcon, UnderlineIcon, ListBulletIcon, ListOrderedIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon
 } from './Icons';
 import { useStory } from '../context/StoryContext';
-import { continueWriting, formatTextWithAI } from '../services/geminiService';
+import { continueWriting, formatTextWithAI } from '../../services/geminiService';
 import FeedbackModal from './editor/FeedbackModal';
 import ModifyTextModal from './editor/ModifyTextModal';
 import GrammarModal from './editor/GrammarModal';
@@ -24,6 +24,33 @@ const stripHtml = (html: string) => {
     return doc.body.textContent || "";
 };
 
+// --- World-Building Popover Component ---
+type WorldEntity = {
+    id: string;
+    name: string;
+    description: string;
+    category: string;
+};
+
+interface WorldEntityPopoverProps {
+    entity: WorldEntity;
+    position: { top: number; left: number };
+}
+
+const WorldEntityPopover: React.FC<WorldEntityPopoverProps> = ({ entity, position }) => (
+    <div 
+        className="fixed z-20 bg-brand-surface p-4 rounded-lg border border-brand-secondary shadow-xl w-full max-w-sm text-sm transition-opacity duration-200"
+        style={{ top: position.top, left: position.left, transform: 'translateY(10px)' }}
+    >
+        <div className="flex justify-between items-center mb-2">
+            <h4 className="font-bold text-brand-text-primary">{entity.name}</h4>
+            <span className="text-xs bg-brand-primary/20 text-brand-primary font-semibold px-2 py-0.5 rounded-full">{entity.category}</span>
+        </div>
+        <p className="text-brand-text-secondary font-serif text-xs max-h-40 overflow-y-auto">{entity.description}</p>
+    </div>
+);
+
+// --- Formatting Toolbar Component ---
 const FormattingToolbar: React.FC<{ onMagicFormat: () => void, isFormatting: boolean }> = ({ onMagicFormat, isFormatting }) => {
     const applyStyle = (command: string) => {
         document.execCommand(command, false);
@@ -73,21 +100,32 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
   // Modal states
   const [activeModal, setActiveModal] = useState<'feedback' | 'modify' | 'grammar' | null>(null);
 
+  // World-Building state
+  const [popover, setPopover] = useState<{ visible: boolean; position: { top: number; left: number }; entity: WorldEntity | null }>({ visible: false, position: { top: 0, left: 0 }, entity: null });
+
+  const worldEntities = useMemo<WorldEntity[]>(() => {
+    if (!activeStory) return [];
+    const fromWorld = activeStory.world.map(w => ({ ...w, description: w.description }));
+    const fromChars = activeStory.characters.map(c => ({
+        id: c.id,
+        name: c.name,
+        category: 'Personagem',
+        description: `Papel: ${c.role}. Aparência: ${c.appearance}. ${c.description}`
+    }));
+    return [...fromWorld, ...fromChars].filter(e => e.name.trim().length > 2); // Filter out short/empty names
+  }, [activeStory?.world, activeStory?.characters]);
+
   // This effect prevents React from re-rendering the contentEditable div on every state change,
   // which fixes the selection bugs.
   useEffect(() => {
     if (editorRef.current) {
-        // Set the initial content.
         editorRef.current.innerHTML = chapter.content;
-        
-        // Update word count initially.
         setWordCount(stripHtml(chapter.content).split(/\s+/).filter(Boolean).length);
     }
-  }, [chapter.id]); // Only run when the chapter itself changes.
+  }, [chapter.id]);
 
   const debouncedAutosave = useMemo(
-    () =>
-      debounce((currentContent: string) => {
+    () => debounce((currentContent: string) => {
         if (!activeStory?.autosaveEnabled) return;
         
         const currentChapterState = { ...chapter, content: currentContent };
@@ -125,9 +163,68 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
     [activeStory?.autosaveEnabled, chapter.id, updateActiveStory]
   );
   
-  useEffect(() => {
-    return () => debouncedAutosave.cancel();
-  }, [debouncedAutosave]);
+  const highlightTerms = useCallback(debounce(() => {
+    if (!editorRef.current || worldEntities.length === 0) return;
+    
+    const escapeRegExp = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const entityNames = worldEntities.map(e => escapeRegExp(e.name)).sort((a,b) => b.length - a.length); // Sort to match longest names first
+    const regex = new RegExp(`\\b(${entityNames.join('|')})\\b`, 'gi');
+    const entityMap = new Map(worldEntities.map(e => [e.name.toLowerCase(), e]));
+
+    const walk = (node: Node) => {
+        if (node.nodeType === Node.TEXT_NODE) {
+            const textContent = node.textContent;
+            if (textContent && regex.test(textContent)) {
+                if (node.parentElement?.closest('.world-entry-highlight')) return;
+
+                const fragment = document.createDocumentFragment();
+                let lastIndex = 0;
+                textContent.replace(regex, (match, ...args) => {
+                    const offset = args[args.length - 2];
+                    if (offset > lastIndex) {
+                        fragment.appendChild(document.createTextNode(textContent.substring(lastIndex, offset)));
+                    }
+                    const entity = entityMap.get(match.toLowerCase());
+                    if (entity) {
+                        const span = document.createElement('span');
+                        span.className = 'world-entry-highlight';
+                        span.dataset.entryId = entity.id;
+                        span.textContent = match;
+                        fragment.appendChild(span);
+                    }
+                    lastIndex = offset + match.length;
+                    return match;
+                });
+                if (lastIndex < textContent.length) {
+                    fragment.appendChild(document.createTextNode(textContent.substring(lastIndex)));
+                }
+
+                if (fragment.childNodes.length > 0) {
+                    node.parentElement?.replaceChild(fragment, node);
+                }
+            }
+        } else if (node.nodeType === Node.ELEMENT_NODE) {
+            Array.from(node.childNodes).forEach(walk);
+        }
+    };
+    
+    const unwrapHighlights = (container: HTMLElement) => {
+        container.querySelectorAll('span.world-entry-highlight').forEach(span => {
+            const parent = span.parentNode;
+            if (parent) {
+                while (span.firstChild) {
+                    parent.insertBefore(span.firstChild, span);
+                }
+                parent.removeChild(span);
+                parent.normalize(); // Merges adjacent text nodes
+            }
+        });
+    };
+    
+    unwrapHighlights(editorRef.current);
+    walk(editorRef.current);
+  }, 500), [worldEntities]);
+
 
   const handleInput = useCallback(() => {
     if (editorRef.current) {
@@ -135,8 +232,9 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
       const text = stripHtml(currentContent);
       setWordCount(text.split(/\s+/).filter(Boolean).length);
       debouncedAutosave(currentContent);
+      highlightTerms();
     }
-  }, [debouncedAutosave]);
+  }, [debouncedAutosave, highlightTerms]);
 
   const handleSave = () => {
     if (!editorRef.current) return;
@@ -163,10 +261,41 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
 
   useEffect(() => {
       document.addEventListener('selectionchange', handleSelectionChange);
+      const editorDiv = editorRef.current;
+      
+      const handleMouseOver = (e: MouseEvent) => {
+          const target = e.target as HTMLElement;
+          const highlight = target.closest<HTMLElement>('.world-entry-highlight');
+          if (highlight?.dataset.entryId) {
+              const entity = worldEntities.find(we => we.id === highlight.dataset.entryId);
+              if (entity) {
+                  const rect = highlight.getBoundingClientRect();
+                  setPopover({ visible: true, entity, position: { top: rect.bottom, left: rect.left } });
+              }
+          }
+      };
+
+      const handleMouseOut = (e: MouseEvent) => {
+          const target = e.target as HTMLElement;
+          const highlight = target.closest<HTMLElement>('.world-entry-highlight');
+          if (highlight) {
+              setPopover(p => ({ ...p, visible: false }));
+          }
+      };
+
+      editorDiv?.addEventListener('mouseover', handleMouseOver);
+      editorDiv?.addEventListener('mouseout', handleMouseOut);
+      
+      highlightTerms();
+
       return () => {
           document.removeEventListener('selectionchange', handleSelectionChange);
+          editorDiv?.removeEventListener('mouseover', handleMouseOver);
+          editorDiv?.removeEventListener('mouseout', handleMouseOut);
+          debouncedAutosave.cancel();
+          highlightTerms.cancel();
       };
-  }, [handleSelectionChange]);
+  }, [handleSelectionChange, debouncedAutosave, highlightTerms, worldEntities]);
 
   const handleContinueWriting = async () => {
     if (!editorRef.current) return;
@@ -247,6 +376,8 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
           </div>
       </div>
       
+      {popover.visible && popover.entity && <WorldEntityPopover entity={popover.entity} position={popover.position} />}
+
       {activeModal === 'feedback' && <FeedbackModal chapterContent={getCurrentContent()} onClose={() => setActiveModal(null)} />}
       
       {activeModal === 'modify' && selectedText && (

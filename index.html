@@ -41,6 +41,18 @@
       .prose-chat em { font-style: italic; }
       .prose-chat p { margin-bottom: 0.5rem; }
       .prose-chat p:last-child { margin-bottom: 0; }
+      
+      /* Styles for World-Building Feature */
+      .world-entry-highlight {
+        border-bottom: 1px dotted #8a4fff; /* brand-primary */
+        cursor: help;
+        background-color: rgba(138, 79, 255, 0.08);
+        border-radius: 2px;
+        transition: background-color 0.2s ease-in-out;
+      }
+      .world-entry-highlight:hover {
+        background-color: rgba(138, 79, 255, 0.15);
+      }
     </style>
     <script>
       tailwind.config = {
