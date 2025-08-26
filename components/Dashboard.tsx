@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import type { Chapter } from '../types';
 import { AppView } from '../types';
-import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, GlobeAltIcon, ArrowDownTrayIcon, ClockIcon, ChevronDoubleLeftIcon, LockClosedIcon, WandSparklesIcon, PhotoIcon, NetworkIcon, ChevronDoubleRightIcon } from './Icons';
+import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, GlobeAltIcon, ArrowDownTrayIcon, ClockIcon, ChevronDoubleLeftIcon, LockClosedIcon, WandSparklesIcon, PhotoIcon, NetworkIcon, ChevronDoubleRightIcon, ChartBarIcon } from './Icons';
 import CharacterEditor from './CharacterEditor';
 import ChapterOrganizer from './ChapterOrganizer';
 import ChapterEditor from './ChapterEditor';
@@ -17,6 +17,7 @@ import { useAuthor } from '../context/AuthorContext';
 import UpgradeModal from './UpgradeModal';
 import CoverDesigner from './CoverDesigner';
 import PlotVisualizer from './PlotVisualizer';
+import PacingAnalyzer from './PacingAnalyzer';
 
 
 interface DashboardProps {
@@ -64,6 +65,13 @@ const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
   const handleEditChapter = (chapter: Chapter) => {
     setEditingChapter(chapter);
     setCurrentView(AppView.EDIT_CHAPTER);
+  };
+  
+  const handleNavigateToChapter = (chapterId: string) => {
+    const chapterToEdit = activeStory?.chapters.find(c => c.id === chapterId);
+    if (chapterToEdit) {
+        handleEditChapter(chapterToEdit);
+    }
   };
 
   const handleBackToChapters = () => {
@@ -163,6 +171,8 @@ const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
         return <CoverDesigner />;
       case AppView.PLOT:
         return <PlotVisualizer />;
+      case AppView.PACING_ANALYZER:
+        return <PacingAnalyzer onNavigateToChapter={handleNavigateToChapter} openUpgradeModal={() => setIsUpgradeModalOpen(true)} />;
       default:
         return null;
     }
@@ -195,6 +205,7 @@ const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
           <NavItem icon={<UsersIcon />} label="Personagens" isCollapsed={isSidebarCollapsed} isActive={currentView === AppView.CHARACTERS} onClick={() => setCurrentView(AppView.CHARACTERS)} />
           <NavItem icon={<GlobeAltIcon />} label="Mundo" isCollapsed={isSidebarCollapsed} isActive={currentView === AppView.WORLD} onClick={() => setCurrentView(AppView.WORLD)} />
           <NavItem icon={<NetworkIcon className="w-6 h-6" />} label="Trama" isCollapsed={isSidebarCollapsed} isActive={currentView === AppView.PLOT} onClick={() => setCurrentView(AppView.PLOT)} />
+          <NavItem icon={<ChartBarIcon className="w-6 h-6" />} label="Ritmo e Tensão" isCollapsed={isSidebarCollapsed} isActive={currentView === AppView.PACING_ANALYZER} onClick={() => setCurrentView(AppView.PACING_ANALYZER)} />
           <NavItem icon={<PhotoIcon />} label="Capa" isCollapsed={isSidebarCollapsed} isActive={currentView === AppView.COVER_DESIGN} onClick={() => setCurrentView(AppView.COVER_DESIGN)} />
           <NavItem icon={<ClockIcon />} label="Histórico" isCollapsed={isSidebarCollapsed} isActive={currentView === AppView.HISTORY} onClick={() => setCurrentView(AppView.HISTORY)} />
         </div>

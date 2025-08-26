@@ -1,7 +1,7 @@
 
 
 import { GoogleGenAI, Type } from "@google/genai";
-import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory, StoryContent, Relationship, PlotCard } from '../types';
+import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory, StoryContent, Relationship, PlotCard, PacingPoint } from '../types';
 
 if (!process.env.API_KEY) {
   throw new Error("API_KEY environment variable not set");
@@ -134,6 +134,7 @@ export const generateCharacterAvatar = async (appearance: string, genre: string,
 const initialAnalysisState = {
     scriptIssues: { results: [], ignored: [], lastAnalyzed: null },
     repetitions: { results: [], ignored: [], lastAnalyzed: null },
+    pacing: { results: [], lastAnalyzed: null },
 };
 
 export const generateStoryStructure = async (genre: string, theme: string, userPrompt: string): Promise<Story> => {
@@ -906,5 +907,63 @@ export const suggestPlotPointsFromSummaries = async (story: Story): Promise<Omit
     } catch (error) {
         console.error("Error suggesting plot points:", error);
         throw new Error("Falha ao sugerir pontos de trama. Tente novamente.");
+    }
+};
+
+const pacingAnalysisSchema = {
+    type: Type.ARRAY,
+    items: {
+        type: Type.OBJECT,
+        properties: {
+          chapterId: { type: Type.STRING, description: 'O ID exato do capítulo fornecido.' },
+          chapterTitle: { type: Type.STRING, description: 'O título exato do capítulo fornecido.' },
+          tensionScore: { type: Type.NUMBER, description: 'Uma pontuação de tensão de 1 (muito baixo, reflexivo) a 10 (muito alto, clímax de ação).' },
+          justification: { type: Type.STRING, description: 'Uma breve justificativa para a pontuação, explicando os fatores considerados.' },
+        },
+        required: ["chapterId", "chapterTitle", "tensionScore", "justification"],
+    },
+};
+
+export const analyzePacingAndTension = async (story: Story): Promise<PacingPoint[]> => {
+    const chapterContext = story.chapters.map(c => `
+---
+ID do Capítulo: ${c.id}
+Título do Capítulo: ${c.title}
+Conteúdo:
+${stripHtml(c.content).substring(0, 8000)}
+---
+    `).join('\n');
+
+    const prompt = `
+        Aja como um editor de desenvolvimento experiente. Analise o ritmo e a tensão de cada capítulo da história fornecida. Para cada capítulo, forneça uma pontuação de tensão de 1 (muito baixo, reflexivo) a 10 (muito alto, clímax de ação) e uma breve justificativa para sua pontuação.
+
+        Considere os seguintes fatores para determinar a pontuação de tensão:
+        - Comprimento da frase e do parágrafo: Frases curtas e parágrafos aumentam o ritmo.
+        - Diálogo vs. Descrição: Cenas com muito diálogo tendem a ser mais rápidas.
+        - Verbos de Ação: O uso de verbos fortes e ativos indica maior tensão.
+        - Conflito e Risco: Identifique quando os personagens enfrentam perigo, obstáculos ou conflitos interpessoais significativos.
+
+        Retorne os resultados em um array JSON, onde cada objeto corresponde a um capítulo. Certifique-se de que os IDs e títulos dos capítulos correspondam exatamente aos fornecidos.
+
+        Capítulos para analisar:
+        ${chapterContext}
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: GEMINI_FLASH_MODEL,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: pacingAnalysisSchema,
+            },
+        });
+        const results = JSON.parse(response.text) as PacingPoint[];
+        // Validate that chapterIds match
+        const validChapterIds = new Set(story.chapters.map(c => c.id));
+        return results.filter(r => validChapterIds.has(r.chapterId));
+    } catch (error) {
+        console.error("Error analyzing pacing and tension:", error);
+        throw new Error("Falha ao analisar o ritmo da história. Tente novamente.");
     }
 };

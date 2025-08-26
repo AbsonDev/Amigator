@@ -47,6 +47,13 @@ export interface RepetitionIssue {
     locations: string[]; // Chapter titles
 }
 
+export interface PacingPoint {
+  chapterId: string;
+  chapterTitle: string;
+  tensionScore: number; // A score from 1 (low) to 10 (high)
+  justification: string;
+}
+
 export interface StoryAnalysis {
     scriptIssues: {
         results: ScriptIssue[];
@@ -56,6 +63,10 @@ export interface StoryAnalysis {
     repetitions: {
         results: RepetitionIssue[];
         ignored: string[]; // Array of repeated text
+        lastAnalyzed: string | null;
+    };
+    pacing: {
+        results: PacingPoint[];
         lastAnalyzed: string | null;
     };
 }
@@ -139,6 +150,7 @@ export enum AppView {
   HISTORY,
   COVER_DESIGN,
   PLOT,
+  PACING_ANALYZER,
 }
 
 export interface BetaReaderFeedback {

@@ -26,6 +26,7 @@ const StoryContext = createContext<StoryContextType | undefined>(undefined);
 const initialAnalysisState = {
     scriptIssues: { results: [], ignored: [], lastAnalyzed: null },
     repetitions: { results: [], ignored: [], lastAnalyzed: null },
+    pacing: { results: [], lastAnalyzed: null },
 };
 
 
@@ -40,18 +41,34 @@ export const StoryProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     // This check is very lightweight and runs only once.
     if (stories.length > 0) {
-        const needsMigration = stories.some(story => !story.world || !story.analysis || !story.actionLog || !story.plot);
+        const needsMigration = stories.some(story => 
+            !story.world || 
+            !story.analysis || 
+            !story.actionLog || 
+            !story.plot ||
+            !story.analysis.pacing
+        );
         if (needsMigration) {
             setStories(currentStories => 
-                currentStories.map(story => ({
-                    ...story,
-                    world: story.world || [],
-                    analysis: story.analysis || initialAnalysisState,
-                    actionLog: story.actionLog || [],
-                    chatHistory: story.chatHistory || [],
-                    versions: story.versions || [],
-                    plot: story.plot || { cards: [], connections: [] },
-                }))
+                currentStories.map(story => {
+                    const migratedAnalysis = {
+                        ...initialAnalysisState,
+                        ...(story.analysis || {}),
+                    };
+                    migratedAnalysis.scriptIssues = { ...initialAnalysisState.scriptIssues, ...(story.analysis?.scriptIssues || {})};
+                    migratedAnalysis.repetitions = { ...initialAnalysisState.repetitions, ...(story.analysis?.repetitions || {})};
+                    migratedAnalysis.pacing = { ...initialAnalysisState.pacing, ...(story.analysis?.pacing || {})};
+
+                    return {
+                        ...story,
+                        world: story.world || [],
+                        analysis: migratedAnalysis,
+                        actionLog: story.actionLog || [],
+                        chatHistory: story.chatHistory || [],
+                        versions: story.versions || [],
+                        plot: story.plot || { cards: [], connections: [] },
+                    };
+                })
             );
         }
     }
