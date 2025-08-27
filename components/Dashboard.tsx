@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import type { Chapter } from '../types';
 import { AppView } from '../types';
@@ -56,6 +57,17 @@ const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
       const doc = new DOMParser().parseFromString(html, 'text/html');
       return doc.body.textContent || "";
   };
+  
+  const trialDaysRemaining = useMemo(() => {
+    if (!author?.subscription.trialEnds) return null;
+    const endDate = new Date(author.subscription.trialEnds);
+    const now = new Date();
+    if (endDate < now) return null; // Trial has expired
+    const diffTime = endDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  }, [author?.subscription.trialEnds]);
+
 
   const wordCount = useMemo(() => {
     if (!activeStory) return 0;
@@ -216,8 +228,24 @@ const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
       </nav>
 
       {/* Main Content */}
-      <main className="flex-grow overflow-y-auto">
-        {renderView()}
+      <main className="flex-grow flex flex-col overflow-hidden">
+        {trialDaysRemaining !== null && (
+          <div className="bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500 text-white text-center p-3 font-semibold shadow-lg flex-shrink-0">
+            <p>
+              Você tem {trialDaysRemaining} {trialDaysRemaining === 1 ? 'dia restante' : 'dias restantes'} no seu teste do plano Amador!{' '}
+              <button 
+                onClick={() => setIsUpgradeModalOpen(true)}
+                className="underline hover:text-yellow-200 font-bold"
+              >
+                Faça upgrade agora
+              </button> 
+              {' '}para manter o acesso.
+            </p>
+          </div>
+        )}
+        <div className="flex-grow overflow-y-auto">
+            {renderView()}
+        </div>
       </main>
 
       {/* Agent Chatbot */}

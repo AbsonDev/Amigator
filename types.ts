@@ -4,6 +4,14 @@ export interface Author {
     tier: 'Free' | 'Hobby' | 'Amador' | 'Profissional';
     trialEnds?: string; // ISO string for trial end date
   };
+  monthlyUsage: MonthlyUsage;
+}
+
+export interface MonthlyUsage {
+  [feature: string]: {
+    count: number;
+    lastReset: string; // ISO string
+  };
 }
 
 export interface Relationship {

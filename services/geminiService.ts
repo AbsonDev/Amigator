@@ -1146,3 +1146,37 @@ export const checkLoreConsistency = async (sentence: string, entityName: string,
         return { isContradictory: false, explanation: null };
     }
 };
+
+export const generateLandingPageIdea = async (prompt: string): Promise<{ title: string; synopsis: string }> => {
+  const generationPrompt = `
+    Aja como um gerador de ideias de histórias. Com base no prompt do usuário, crie um título cativante e uma sinopse curta (1-2 frases) para uma nova história.
+    
+    Prompt do Usuário: "${prompt}"
+
+    Retorne o resultado em um objeto JSON com as chaves "title" e "synopsis".
+  `;
+  
+  const schema = {
+      type: Type.OBJECT,
+      properties: {
+        title: { type: Type.STRING, description: "Um título criativo e cativante para a história." },
+        synopsis: { type: Type.STRING, description: "Uma sinopse curta (1-2 frases) da história." }
+      },
+      required: ["title", "synopsis"]
+  };
+
+  try {
+    const response = await ai.models.generateContent({
+      model: GEMINI_FLASH_MODEL,
+      contents: generationPrompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: schema,
+      },
+    });
+    return JSON.parse(response.text);
+  } catch (error) {
+    console.error("Error generating landing page idea:", error);
+    throw new Error("Falha ao gerar a ideia. Tente novamente.");
+  }
+};

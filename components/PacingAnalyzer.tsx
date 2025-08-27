@@ -85,7 +85,7 @@ const PacingChart: React.FC<{ data: PacingPoint[], onNavigateToChapter: (chapter
 
 
 const PacingAnalyzer: React.FC<PacingAnalyzerProps> = ({ onNavigateToChapter, openUpgradeModal }) => {
-    const { author } = useAuthor();
+    const { author, setAuthor } = useAuthor();
     const { activeStory, updateActiveStory } = useStory();
     const [isLoading, setIsLoading] = useState(false);
 
@@ -94,14 +94,58 @@ const PacingAnalyzer: React.FC<PacingAnalyzerProps> = ({ onNavigateToChapter, op
     const isPro = ['Amador', 'Profissional'].includes(author.subscription.tier);
     const analysisData = activeStory.analysis.pacing;
 
+    const getUsageStatus = (featureKey: string, limit: number) => {
+      const usage = author.monthlyUsage?.[featureKey] || { count: 0, lastReset: new Date(0).toISOString() };
+      const now = new Date();
+      const lastReset = new Date(usage.lastReset);
+      
+      let currentCount = usage.count;
+      if (now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear()) {
+          currentCount = 0;
+      }
+      
+      return {
+          canUse: currentCount < limit,
+          remaining: Math.max(0, limit - currentCount)
+      };
+    };
+
+    const trackUsage = (featureKey: string) => {
+      const now = new Date();
+      const currentUsage = author.monthlyUsage?.[featureKey] || { count: 0, lastReset: new Date(0).toISOString() };
+      const lastReset = new Date(currentUsage.lastReset);
+      
+      let count = currentUsage.count;
+      let resetDate = currentUsage.lastReset;
+
+      if (now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear()) {
+          count = 0;
+          resetDate = now.toISOString();
+      }
+      
+      setAuthor({
+          ...author,
+          monthlyUsage: {
+              ...author.monthlyUsage,
+              [featureKey]: {
+                  count: count + 1,
+                  lastReset: resetDate
+              }
+          }
+      });
+    };
+
+    const usageStatus = getUsageStatus('pacingAnalysis', 1);
+
     const handleAnalyze = async () => {
-        if (!isPro) {
+        if (!isPro && !usageStatus.canUse) {
             openUpgradeModal();
             return;
         }
         setIsLoading(true);
         try {
             const results = await analyzePacingAndTension(activeStory);
+            if (!isPro) trackUsage('pacingAnalysis');
             updateActiveStory(story => ({
                 ...story,
                 analysis: {
@@ -129,11 +173,11 @@ const PacingAnalyzer: React.FC<PacingAnalyzerProps> = ({ onNavigateToChapter, op
                  </button>
             </div>
             
-            {!isPro ? (
+            {!isPro && !usageStatus.canUse ? (
                 <div className="text-center py-20 bg-brand-surface border-2 border-dashed border-brand-secondary rounded-lg">
                     <LockClosedIcon className="w-12 h-12 mx-auto text-yellow-400" />
-                    <h2 className="mt-4 text-2xl font-bold text-brand-text-primary">Recurso Profissional</h2>
-                    <p className="mt-2 text-brand-text-secondary max-w-md mx-auto">O Analisador de Ritmo é uma ferramenta avançada. Faça upgrade para desbloquear esta e outras funcionalidades.</p>
+                    <h2 className="mt-4 text-2xl font-bold text-brand-text-primary">Limite Mensal Atingido</h2>
+                    <p className="mt-2 text-brand-text-secondary max-w-md mx-auto">Você usou sua análise de ritmo gratuita deste mês. Faça upgrade para análises ilimitadas.</p>
                     <button onClick={openUpgradeModal} className="mt-6 bg-brand-primary text-white font-bold py-2 px-5 rounded-lg hover:bg-opacity-90">
                         Ver Planos
                     </button>
@@ -142,6 +186,7 @@ const PacingAnalyzer: React.FC<PacingAnalyzerProps> = ({ onNavigateToChapter, op
                 <div>
                     <PacingChart data={analysisData.results} onNavigateToChapter={onNavigateToChapter} />
                      <p className="text-right text-xs text-brand-text-secondary mt-2">
+                        {!isPro && `(${usageStatus.remaining} uso gratuito restante) `}
                         Última análise em: {new Date(analysisData.lastAnalyzed || Date.now()).toLocaleString()}
                     </p>
                 </div>
@@ -149,7 +194,10 @@ const PacingAnalyzer: React.FC<PacingAnalyzerProps> = ({ onNavigateToChapter, op
                  <div className="text-center py-20 bg-brand-surface border-2 border-dashed border-brand-secondary rounded-lg">
                     <ChartBarIcon className="w-16 h-16 mx-auto text-brand-secondary" />
                     <h2 className="mt-4 text-xl font-semibold text-brand-text-primary">Pronto para analisar sua história?</h2>
-                    <p className="mt-2 text-brand-text-secondary">Clique em "Analisar Ritmo" para que a IA gere um gráfico visual da tensão em sua narrativa.</p>
+                    <p className="mt-2 text-brand-text-secondary">
+                        Clique em "Analisar Ritmo" para que a IA gere um gráfico visual da tensão em sua narrativa.
+                        {!isPro && ` Você tem ${usageStatus.remaining} uso gratuito restante este mês.`}
+                    </p>
                 </div>
             )}
         </div>

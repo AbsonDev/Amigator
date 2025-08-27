@@ -6,6 +6,8 @@ import { generateCharacterAvatar, suggestCharacterRelationships, analyzeCharacte
 import Modal from '../common/Modal';
 import CharacterChatModal from './CharacterChatModal';
 import CharacterVoiceAnalysisModal from './CharacterVoiceAnalysisModal';
+import { useAuthor } from '../../context/AuthorContext';
+import UpgradeModal from '../UpgradeModal';
 
 type ArtStyle = "Arte Digital" | "Fotorrealista" | "Anime/Mangá" | "Pintura a Óleo" | "Fantasia Sombria";
 
@@ -17,6 +19,7 @@ interface EditCharacterModalProps {
 
 const EditCharacterModal: React.FC<EditCharacterModalProps> = ({ character, onClose, onSave }) => {
     const { activeStory, updateActiveStory } = useStory();
+    const { author, setAuthor } = useAuthor();
     const [editedChar, setEditedChar] = useState(character);
     const [artStyle, setArtStyle] = useState<ArtStyle>("Arte Digital");
     
@@ -28,6 +31,7 @@ const EditCharacterModal: React.FC<EditCharacterModalProps> = ({ character, onCl
     // Modal states
     const [isChatModalOpen, setIsChatModalOpen] = useState(false);
     const [isVoiceAnalysisModalOpen, setIsVoiceAnalysisModalOpen] = useState(false);
+    const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
     
     const [newRelCharacterId, setNewRelCharacterId] = useState('');
     const [newRelType, setNewRelType] = useState('Aliado');
@@ -98,12 +102,65 @@ const EditCharacterModal: React.FC<EditCharacterModalProps> = ({ character, onCl
             setIsSuggestingRels(false);
         }
     };
+    
+    const getUsageStatus = (featureKey: string, limit: number) => {
+      if (!author) return { canUse: false, remaining: 0 };
+      const usage = author.monthlyUsage?.[featureKey] || { count: 0, lastReset: new Date(0).toISOString() };
+      const now = new Date();
+      const lastReset = new Date(usage.lastReset);
+      
+      let currentCount = usage.count;
+      if (now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear()) {
+          currentCount = 0;
+      }
+      
+      return {
+          canUse: currentCount < limit,
+          remaining: Math.max(0, limit - currentCount)
+      };
+    };
+
+    const trackUsage = (featureKey: string) => {
+      if (!author) return;
+      const now = new Date();
+      const currentUsage = author.monthlyUsage?.[featureKey] || { count: 0, lastReset: new Date(0).toISOString() };
+      const lastReset = new Date(currentUsage.lastReset);
+      
+      let count = currentUsage.count;
+      let resetDate = currentUsage.lastReset;
+
+      if (now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear()) {
+          count = 0;
+          resetDate = now.toISOString();
+      }
+      
+      setAuthor({
+          ...author,
+          monthlyUsage: {
+              ...author.monthlyUsage,
+              [featureKey]: {
+                  count: count + 1,
+                  lastReset: resetDate
+              }
+          }
+      });
+    };
+    
+    const voiceAnalysisUsage = getUsageStatus(`voiceAnalysis_${character.id}`, 1);
 
     const handleAnalyzeVoice = async () => {
-        if (!activeStory) return;
+        if (!activeStory || !author) return;
+        
+        const isPro = ['Amador', 'Profissional'].includes(author.subscription.tier);
+        if (!isPro && !voiceAnalysisUsage.canUse) {
+            setIsUpgradeModalOpen(true);
+            return;
+        }
+
         setIsAnalyzingVoice(true);
         try {
             const results = await analyzeCharacterVoice(activeStory, character);
+            if (!isPro) trackUsage(`voiceAnalysis_${character.id}`);
             updateActiveStory(story => {
                 const charVoiceAnalysis = story.analysis.characterVoices[character.id] || { results: [], ignored: [], lastAnalyzed: null };
                 return {
@@ -131,8 +188,10 @@ const EditCharacterModal: React.FC<EditCharacterModalProps> = ({ character, onCl
     };
 
 
-    if (!activeStory) return null;
+    if (!activeStory || !author) return null;
     const otherCharacters = activeStory.characters.filter(c => c.id !== character.id);
+    const isPro = ['Amador', 'Profissional'].includes(author.subscription.tier);
+
 
     return (
         <>
@@ -221,6 +280,7 @@ const EditCharacterModal: React.FC<EditCharacterModalProps> = ({ character, onCl
 
                     <div className="border-t border-brand-secondary pt-4 mt-auto">
                         <h3 className="font-semibold text-brand-text-primary mb-2">Voz do Personagem</h3>
+                        {!isPro && <p className="text-xs text-brand-text-secondary mb-2">{voiceAnalysisUsage.remaining} de 1 uso gratuito restante para este personagem.</p>}
                         <div className="space-y-2">
                             <button onClick={handleAnalyzeVoice} disabled={isAnalyzingVoice} className="w-full flex items-center justify-center gap-2 bg-brand-secondary text-white font-bold py-2.5 px-4 rounded-lg hover:bg-opacity-80 disabled:opacity-50">
                                {isAnalyzingVoice ? 'Analisando...' : 'Analisar Consistência da Voz'} <SparklesIcon className="w-4 h-4" />
@@ -251,6 +311,7 @@ const EditCharacterModal: React.FC<EditCharacterModalProps> = ({ character, onCl
                 onClose={() => setIsVoiceAnalysisModalOpen(false)}
             />
         )}
+        {isUpgradeModalOpen && <UpgradeModal isOpen={isUpgradeModalOpen} onClose={() => setIsUpgradeModalOpen(false)} />}
         </>
     );
 };

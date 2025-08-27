@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import type { Author } from '../types';
 import { PencilIcon } from './Icons';
@@ -11,9 +10,16 @@ const AuthorProfile: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim()) {
+      const trialEndDate = new Date();
+      trialEndDate.setDate(trialEndDate.getDate() + 7);
+
       setAuthor({ 
         name: name.trim(),
-        subscription: { tier: 'Free' }
+        subscription: { 
+          tier: 'Amador',
+          trialEnds: trialEndDate.toISOString(),
+        },
+        monthlyUsage: {},
       });
     }
   };

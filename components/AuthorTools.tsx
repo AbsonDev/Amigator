@@ -11,7 +11,7 @@ interface AuthorToolsProps {
 }
 
 const AuthorTools: React.FC<AuthorToolsProps> = ({ openUpgradeModal }) => {
-    const { author } = useAuthor();
+    const { author, setAuthor } = useAuthor();
     const { activeStory, updateActiveStory } = useStory();
     const [activeAnalysis, setActiveAnalysis] = useState<'script' | 'repetition' | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -21,19 +21,60 @@ const AuthorTools: React.FC<AuthorToolsProps> = ({ openUpgradeModal }) => {
     
     const isPro = ['Amador', 'Profissional'].includes(author.subscription.tier);
 
-    const handleFeatureClick = (featureAction: () => void) => {
-        if (isPro) {
-            featureAction();
-        } else {
-            openUpgradeModal();
-        }
+    const getUsageStatus = (featureKey: string, limit: number) => {
+      const usage = author.monthlyUsage?.[featureKey] || { count: 0, lastReset: new Date(0).toISOString() };
+      const now = new Date();
+      const lastReset = new Date(usage.lastReset);
+      
+      let currentCount = usage.count;
+      if (now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear()) {
+          currentCount = 0;
+      }
+      
+      return {
+          canUse: currentCount < limit,
+          remaining: Math.max(0, limit - currentCount)
+      };
     };
 
+    const trackUsage = (featureKey: string) => {
+      const now = new Date();
+      const currentUsage = author.monthlyUsage?.[featureKey] || { count: 0, lastReset: new Date(0).toISOString() };
+      const lastReset = new Date(currentUsage.lastReset);
+      
+      let count = currentUsage.count;
+      let resetDate = currentUsage.lastReset;
+
+      if (now.getMonth() !== lastReset.getMonth() || now.getFullYear() !== lastReset.getFullYear()) {
+          count = 0;
+          resetDate = now.toISOString();
+      }
+      
+      setAuthor({
+          ...author,
+          monthlyUsage: {
+              ...author.monthlyUsage,
+              [featureKey]: {
+                  count: count + 1,
+                  lastReset: resetDate
+              }
+          }
+      });
+    };
+
+    const scriptUsage = getUsageStatus('scriptAnalysis', 1);
+    const repetitionUsage = getUsageStatus('repetitionAnalysis', 1);
+
     const handleAnalyzeScript = async () => {
+        if (!isPro && !scriptUsage.canUse) {
+            openUpgradeModal();
+            return;
+        }
         setIsAnalyzing(true);
         setActiveAnalysis('script');
         try {
             const results = await analyzeScriptContinuity(activeStory);
+            if (!isPro) trackUsage('scriptAnalysis');
             updateActiveStory(story => ({
                 ...story,
                 analysis: {
@@ -50,10 +91,15 @@ const AuthorTools: React.FC<AuthorToolsProps> = ({ openUpgradeModal }) => {
     };
 
     const handleAnalyzeRepetitions = async () => {
+        if (!isPro && !repetitionUsage.canUse) {
+            openUpgradeModal();
+            return;
+        }
         setIsAnalyzing(true);
         setActiveAnalysis('repetition');
         try {
             const results = await analyzeRepetitions(activeStory);
+            if (!isPro) trackUsage('repetitionAnalysis');
             updateActiveStory(story => ({
                 ...story,
                 analysis: {
@@ -77,24 +123,22 @@ const AuthorTools: React.FC<AuthorToolsProps> = ({ openUpgradeModal }) => {
             <div className="mt-10">
                 <h2 className="text-2xl font-bold font-serif text-brand-text-primary mb-4">Ferramentas do Autor</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-brand-surface border border-brand-secondary rounded-lg p-6 flex flex-col relative">
-                        {!isPro && <span className="absolute top-2 right-2 text-xs bg-yellow-500 text-black font-bold px-2 py-1 rounded">PRO</span>}
+                    <div className="bg-brand-surface border border-brand-secondary rounded-lg p-6 flex flex-col">
                         <h3 className="font-bold text-brand-text-primary flex items-center gap-2">Continuidade da Trama {!isPro && <LockClosedIcon className="w-4 h-4 text-yellow-400" />}</h3>
-                        <p className="text-sm text-brand-text-secondary mt-1 flex-grow">Verifica furos de roteiro e inconsistências.</p>
+                        <p className="text-sm text-brand-text-secondary mt-1 flex-grow">Verifica furos de roteiro e inconsistências. {!isPro && <span className="font-semibold text-brand-text-primary">{scriptUsage.remaining} de 1 uso gratuito restante.</span>}</p>
                         {scriptIssues.length > 0 && isPro && <p className="text-yellow-400 font-bold my-2">{scriptIssues.length} problemas encontrados</p>}
                         <div className="flex gap-2 mt-4">
-                            <button onClick={() => handleFeatureClick(() => setActiveAnalysis('script'))} className="flex-1 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-all">Ver Detalhes</button>
-                            <button onClick={() => handleFeatureClick(handleAnalyzeScript)} disabled={isAnalyzing && activeAnalysis === 'script'} className="bg-brand-primary p-2 rounded-lg hover:bg-opacity-90 transition-all"><RefreshIcon className={`w-5 h-5 ${isAnalyzing && activeAnalysis === 'script' ? 'animate-spin' : ''}`} /></button>
+                            <button onClick={() => isPro ? setActiveAnalysis('script') : openUpgradeModal()} className="flex-1 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-all">Ver Detalhes</button>
+                            <button onClick={handleAnalyzeScript} disabled={isAnalyzing && activeAnalysis === 'script'} className="bg-brand-primary p-2 rounded-lg hover:bg-opacity-90 transition-all"><RefreshIcon className={`w-5 h-5 ${isAnalyzing && activeAnalysis === 'script' ? 'animate-spin' : ''}`} /></button>
                         </div>
                     </div>
-                    <div className="bg-brand-surface border border-brand-secondary rounded-lg p-6 flex flex-col relative">
-                         {!isPro && <span className="absolute top-2 right-2 text-xs bg-yellow-500 text-black font-bold px-2 py-1 rounded">PRO</span>}
+                    <div className="bg-brand-surface border border-brand-secondary rounded-lg p-6 flex flex-col">
                         <h3 className="font-bold text-brand-text-primary flex items-center gap-2">Análise de Repetição {!isPro && <LockClosedIcon className="w-4 h-4 text-yellow-400" />}</h3>
-                        <p className="text-sm text-brand-text-secondary mt-1 flex-grow">Encontra palavras e frases repetitivas.</p>
+                        <p className="text-sm text-brand-text-secondary mt-1 flex-grow">Encontra palavras e frases repetitivas. {!isPro && <span className="font-semibold text-brand-text-primary">{repetitionUsage.remaining} de 1 uso gratuito restante.</span>}</p>
                         {repetitionIssues.length > 0 && isPro && <p className="text-yellow-400 font-bold my-2">{repetitionIssues.length} repetições encontradas</p>}
                         <div className="flex gap-2 mt-4">
-                            <button onClick={() => handleFeatureClick(() => setActiveAnalysis('repetition'))} className="flex-1 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-all">Ver Detalhes</button>
-                            <button onClick={() => handleFeatureClick(handleAnalyzeRepetitions)} disabled={isAnalyzing && activeAnalysis === 'repetition'} className="bg-brand-primary p-2 rounded-lg hover:bg-opacity-90 transition-all"><RefreshIcon className={`w-5 h-5 ${isAnalyzing && activeAnalysis === 'repetition' ? 'animate-spin' : ''}`} /></button>
+                            <button onClick={() => isPro ? setActiveAnalysis('repetition') : openUpgradeModal()} className="flex-1 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-all">Ver Detalhes</button>
+                            <button onClick={handleAnalyzeRepetitions} disabled={isAnalyzing && activeAnalysis === 'repetition'} className="bg-brand-primary p-2 rounded-lg hover:bg-opacity-90 transition-all"><RefreshIcon className={`w-5 h-5 ${isAnalyzing && activeAnalysis === 'repetition' ? 'animate-spin' : ''}`} /></button>
                         </div>
                     </div>
                     <div className="bg-brand-surface border border-brand-secondary rounded-lg p-6 flex flex-col">
