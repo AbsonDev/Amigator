@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import useLocalStorage from './hooks/useLocalStorage';
 import { useStory } from './context/StoryContext';
 import { useAuthor } from './context/AuthorContext';
-import AuthorProfile from './components/AuthorProfile';
 import StorySetup from './components/StorySetup';
 import Dashboard from './components/Dashboard';
 import LoadingSpinner from './components/LoadingSpinner';
@@ -12,11 +11,14 @@ import Bookshelf from './components/Bookshelf';
 import LandingPage from './components/LandingPage';
 import PostTrialModal from './components/PostTrialModal';
 import UpgradeModal from './components/UpgradeModal';
+import Login from './components/auth/Login';
+import SignUp from './components/auth/SignUp';
 
 const App: React.FC = () => {
   const { author, showPostTrialModal, closePostTrialModal } = useAuthor();
   const [hasVisited, setHasVisited] = useLocalStorage<boolean>('has-visited-writer-app', false);
   const [isUpgradeModalOpenForPostTrial, setIsUpgradeModalOpenForPostTrial] = useState(false);
+  const [authView, setAuthView] = useState<'login' | 'signup'>('login');
   
   const {
     stories,
@@ -48,13 +50,16 @@ const App: React.FC = () => {
     if (!hasVisited) {
       return <LandingPage onStart={handleStart} />;
     }
-
+    
     if (isLoading) {
       return <LoadingSpinner />;
     }
 
     if (!author) {
-      return <AuthorProfile />;
+       if (authView === 'login') {
+         return <Login onSwitchToSignUp={() => setAuthView('signup')} />;
+       }
+       return <SignUp onSwitchToLogin={() => setAuthView('login')} />;
     }
     
     if (isCreating) {

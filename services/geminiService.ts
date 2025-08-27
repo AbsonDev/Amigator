@@ -1180,3 +1180,45 @@ export const generateLandingPageIdea = async (prompt: string): Promise<{ title: 
     throw new Error("Falha ao gerar a ideia. Tente novamente.");
   }
 };
+
+export const generateStoryIdeas = async (genre: string): Promise<{ themes: string[]; startingPoints: string[] }> => {
+  const prompt = `
+    Aja como um gerador de ideias para histórias. Com base no gênero literário fornecido, crie uma lista de temas principais e uma lista de pontos de partida para uma nova história.
+    
+    Gênero: "${genre}"
+
+    Retorne o resultado em um objeto JSON.
+  `;
+  
+  const schema = {
+      type: Type.OBJECT,
+      properties: {
+        themes: { 
+            type: Type.ARRAY, 
+            description: "Uma lista de 3 a 4 temas principais cativantes para uma história neste gênero.",
+            items: { type: Type.STRING }
+        },
+        startingPoints: {
+            type: Type.ARRAY,
+            description: "Uma lista de 3 a 4 pontos de partida ou ideias de cena de abertura para uma história neste gênero.",
+            items: { type: Type.STRING }
+        }
+      },
+      required: ["themes", "startingPoints"]
+  };
+
+  try {
+    const response = await ai.models.generateContent({
+      model: GEMINI_FLASH_MODEL,
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: schema,
+      },
+    });
+    return JSON.parse(response.text);
+  } catch (error) {
+    console.error("Error generating story ideas:", error);
+    throw new Error("Falha ao gerar ideias. Tente novamente.");
+  }
+};

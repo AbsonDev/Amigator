@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import type { Chapter } from '../types';
 import { AppView } from '../types';
-import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, GlobeAltIcon, ArrowDownTrayIcon, ClockIcon, ChevronDoubleLeftIcon, LockClosedIcon, WandSparklesIcon, PhotoIcon, NetworkIcon, ChevronDoubleRightIcon, ChartBarIcon } from './Icons';
+import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, GlobeAltIcon, ArrowDownTrayIcon, ClockIcon, ChevronDoubleLeftIcon, LockClosedIcon, WandSparklesIcon, PhotoIcon, NetworkIcon, ChevronDoubleRightIcon, ChartBarIcon, ArrowLeftOnRectangleIcon } from './Icons';
 import CharacterEditor from './CharacterEditor';
 import ChapterOrganizer from './ChapterOrganizer';
 import ChapterEditor from './ChapterEditor';
@@ -19,6 +19,7 @@ import UpgradeModal from './UpgradeModal';
 import CoverDesigner from './CoverDesigner';
 import PlotVisualizer from './PlotVisualizer';
 import PacingAnalyzer from './PacingAnalyzer';
+import ManuscriptView from './ManuscriptView';
 
 
 interface DashboardProps {
@@ -44,7 +45,7 @@ const NavItem: React.FC<{ icon: React.ReactNode; label: string; isCollapsed: boo
 
 
 const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
-  const { author } = useAuthor();
+  const { author, logout } = useAuthor();
   const { activeStory, updateActiveStory } = useStory();
   const [currentView, setCurrentView] = useState<AppView>(AppView.OVERVIEW);
   const [editingChapter, setEditingChapter] = useState<Chapter | null>(null);
@@ -175,6 +176,8 @@ const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
         return <CharacterEditor />;
       case AppView.EDIT_CHAPTER:
         return editingChapter ? <ChapterEditor chapter={editingChapter} onBack={handleBackToChapters} /> : null;
+      case AppView.MANUSCRIPT:
+        return <ManuscriptView />;
       case AppView.WORLD:
         return <WorldBuilder />;
       case AppView.HISTORY:
@@ -206,7 +209,8 @@ const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
     <div className="flex h-screen bg-brand-background text-brand-text-primary overflow-hidden">
       {/* Sidebar Navigation */}
       <nav className={`bg-brand-surface border-r border-brand-secondary flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
-        <div className="flex items-center justify-center p-4 h-16 border-b border-brand-secondary">
+        <div className="flex items-center justify-between p-4 h-16 border-b border-brand-secondary">
+          {!isSidebarCollapsed && <span className="font-bold text-lg">{author?.name}</span>}
           <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="p-2 rounded-md hover:bg-brand-secondary">
             {isSidebarCollapsed ? <ChevronDoubleRightIcon className="w-5 h-5" /> : <ChevronDoubleLeftIcon className="w-5 h-5" />}
           </button>
@@ -214,6 +218,7 @@ const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
         <div className="flex-grow p-2 space-y-1 overflow-y-auto">
           <NavItem icon={<HomeIcon />} label="Painel" isCollapsed={isSidebarCollapsed} isActive={currentView === AppView.OVERVIEW} onClick={() => setCurrentView(AppView.OVERVIEW)} />
           <NavItem icon={<PencilIcon />} label="Capítulos" isCollapsed={isSidebarCollapsed} isActive={currentView === AppView.CHAPTERS || currentView === AppView.EDIT_CHAPTER} onClick={() => setCurrentView(AppView.CHAPTERS)} />
+          <NavItem icon={<BookOpenIcon className="w-6 h-6" />} label="Manuscrito" isCollapsed={isSidebarCollapsed} isActive={currentView === AppView.MANUSCRIPT} onClick={() => setCurrentView(AppView.MANUSCRIPT)} />
           <NavItem icon={<UsersIcon />} label="Personagens" isCollapsed={isSidebarCollapsed} isActive={currentView === AppView.CHARACTERS} onClick={() => setCurrentView(AppView.CHARACTERS)} />
           <NavItem icon={<GlobeAltIcon />} label="Mundo" isCollapsed={isSidebarCollapsed} isActive={currentView === AppView.WORLD} onClick={() => setCurrentView(AppView.WORLD)} />
           <NavItem icon={<NetworkIcon className="w-6 h-6" />} label="Trama" isCollapsed={isSidebarCollapsed} isActive={currentView === AppView.PLOT} onClick={() => setCurrentView(AppView.PLOT)} />
@@ -224,6 +229,7 @@ const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
         <div className="p-2 border-t border-brand-secondary flex-shrink-0">
           <NavItem icon={<ArrowDownTrayIcon />} label="Exportar" isCollapsed={isSidebarCollapsed} isActive={false} onClick={() => setIsExportModalOpen(true)} />
           <NavItem icon={<BookOpenIcon />} label="Estante" isCollapsed={isSidebarCollapsed} isActive={false} onClick={goToBookshelf} />
+          <NavItem icon={<ArrowLeftOnRectangleIcon />} label="Sair" isCollapsed={isSidebarCollapsed} isActive={false} onClick={logout} />
         </div>
       </nav>
 

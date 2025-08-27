@@ -1,6 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
 import type { Story } from '../types';
-import { BookOpenIcon, SparklesIcon, UploadIcon, TrashIcon } from './Icons';
+import { BookOpenIcon, SparklesIcon, UploadIcon, TrashIcon, ArrowLeftOnRectangleIcon } from './Icons';
 import mammoth from 'mammoth';
 import ConfirmationModal from './common/ConfirmationModal';
 import { useAuthor } from '../context/AuthorContext';
@@ -75,7 +75,7 @@ const StoryCard: React.FC<{ story: Story; onSelect: () => void; onDelete: () => 
 };
 
 const Bookshelf: React.FC<BookshelfProps> = ({ stories, onStartNewStory, onSelectStory, onImportStory, onDeleteStory }) => {
-    const { author } = useAuthor();
+    const { author, logout } = useAuthor();
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
     const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
     const [storyToDelete, setStoryToDelete] = useState<Story | null>(null);
@@ -171,7 +171,7 @@ const Bookshelf: React.FC<BookshelfProps> = ({ stories, onStartNewStory, onSelec
                         <h1 className="text-4xl font-bold font-serif">Estante de {author?.name}</h1>
                         <p className="text-brand-text-secondary mt-1">Seus projetos literários em um só lugar.</p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-2">
                          <button
                             onClick={() => setIsImportModalOpen(true)}
                             className="flex items-center gap-2 bg-brand-secondary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-all duration-300 transform hover:scale-105"
@@ -186,6 +186,13 @@ const Bookshelf: React.FC<BookshelfProps> = ({ stories, onStartNewStory, onSelec
                         >
                             <SparklesIcon className="w-5 h-5" />
                             Criar Novo Livro
+                        </button>
+                        <button
+                            onClick={logout}
+                            className="p-2 rounded-lg bg-brand-secondary text-brand-text-primary hover:bg-red-600 hover:text-white transition-colors"
+                            title="Sair"
+                        >
+                            <ArrowLeftOnRectangleIcon className="w-5 h-5" />
                         </button>
                     </div>
                 </header>

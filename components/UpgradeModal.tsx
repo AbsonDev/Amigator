@@ -62,7 +62,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose }) => {
     };
     
     return (
-        <Modal isOpen={isOpen} onClose={onClose} title="Desbloqueie Todo o Potencial" className="max-w-6xl max-h-[90vh]">
+        <Modal isOpen={isOpen} onClose={onClose} title="Desbloqueie Todo o Potencial" className="max-w-7xl max-h-[90vh]">
             <div className="p-4 md:p-8 overflow-y-auto">
                 <div className="text-center mb-10">
                     <h2 id="modal-title" className="text-3xl md:text-4xl font-bold font-serif text-brand-text-primary mb-2">
@@ -75,7 +75,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose }) => {
 
                 {/* Comparison Table */}
                 <div className="overflow-x-auto pb-4 -mx-4 px-4 md:-mx-8 md:px-8">
-                    <div className="grid grid-cols-5 gap-4 min-w-[1000px]">
+                    <div className="grid grid-cols-5 gap-4 min-w-[1000px] pt-4">
                         {/* Feature Headers */}
                         <div className="pt-24 pb-4 min-w-[240px]">
                             {allFeatures.map(feature => (

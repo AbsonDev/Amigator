@@ -1,4 +1,7 @@
 export interface Author {
+  id: string;
+  email: string;
+  password?: string; // For simulation purposes
   name: string;
   subscription: {
     tier: 'Free' | 'Hobby' | 'Amador' | 'Profissional';
@@ -173,6 +176,7 @@ export enum AppView {
   COVER_DESIGN,
   PLOT,
   PACING_ANALYZER,
+  MANUSCRIPT,
 }
 
 export interface BetaReaderFeedback {

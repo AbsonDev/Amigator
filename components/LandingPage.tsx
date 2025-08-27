@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { SparklesIcon, LightbulbIcon, GlobeAltIcon, ClipboardIcon, PencilIcon, NetworkIcon } from './Icons';
 import { generateLandingPageIdea } from '../services/geminiService';
@@ -135,139 +136,36 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
                                           <img src={feature.image} alt={feature.name} className="rounded-xl shadow-2xl mb-4 interactive-3d-card" />
                                         </div>
                                         <p className="text-brand-text-secondary">{feature.description}</p>
-                                    </div>
+                                     </div>
                                 ))}
                             </div>
                         </div>
                     </div>
                 </section>
                 
-                 {/* Social Proof Section */}
+                 {/* Testimonials Section */}
                 <section className="py-20 px-4">
-                    <div className="max-w-6xl mx-auto">
-                        <h2 className="text-center text-4xl font-bold font-serif mb-12">Amado por Autores Independentes</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                            <div className="group perspective">
-                                <div className="relative bg-brand-surface p-6 rounded-lg border border-brand-secondary h-full interactive-3d-card overflow-hidden">
-                                    <QuoteIcon className="absolute top-4 left-4 w-24 h-24 text-brand-secondary/20 -z-0" />
-                                    <div className="relative z-10">
-                                        <img src="https://i.pravatar.cc/150?u=a" alt="J. Valerius" className="w-16 h-16 rounded-full mx-auto mb-4 border-2 border-brand-primary ring-2 ring-brand-primary/30 shadow-lg shadow-brand-primary/20"/>
-                                        <p className="italic text-brand-text-secondary text-center">"A análise de continuidade é um salva-vidas. A IA encontrou um furo de roteiro que eu nunca teria visto!"</p>
-                                        <p className="font-semibold text-brand-text-primary mt-4 text-center">- J. Valerius, Autor de Fantasia</p>
-                                    </div>
-                                </div>
-                            </div>
-                             <div className="group perspective">
-                                <div className="relative bg-brand-surface p-6 rounded-lg border border-brand-secondary h-full interactive-3d-card overflow-hidden">
-                                    <QuoteIcon className="absolute top-4 left-4 w-24 h-24 text-brand-secondary/20 -z-0" />
-                                    <div className="relative z-10">
-                                        <img src="https://i.pravatar.cc/150?u=b" alt="Clara Menezes" className="w-16 h-16 rounded-full mx-auto mb-4 border-2 border-brand-primary ring-2 ring-brand-primary/30 shadow-lg shadow-brand-primary/20"/>
-                                        <p className="italic text-brand-text-secondary text-center">"Finalmente consegui terminar meu primeiro rascunho. A ferramenta de 'continuar escrita' me salvou do bloqueio criativo várias vezes."</p>
-                                        <p className="font-semibold text-brand-text-primary mt-4 text-center">- Clara Menezes, Escritora de Ficção Científica</p>
-                                    </div>
-                                </div>
-                            </div>
-                             <div className="group perspective">
-                               <div className="relative bg-brand-surface p-6 rounded-lg border border-brand-secondary h-full interactive-3d-card overflow-hidden">
-                                    <QuoteIcon className="absolute top-4 left-4 w-24 h-24 text-brand-secondary/20 -z-0" />
-                                    <div className="relative z-10">
-                                        <img src="https://i.pravatar.cc/150?u=c" alt="R. D. Gomes" className="w-16 h-16 rounded-full mx-auto mb-4 border-2 border-brand-primary ring-2 ring-brand-primary/30 shadow-lg shadow-brand-primary/20"/>
-                                        <p className="italic text-brand-text-secondary text-center">"Passar da ideia para o enredo visual com os cartões de trama acelerou meu processo de escrita em semanas."</p>
-                                        <p className="font-semibold text-brand-text-primary mt-4 text-center">- R. D. Gomes, Autor de Mistério</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <div className="max-w-4xl mx-auto text-center">
+                        <QuoteIcon className="text-brand-primary/30 mx-auto" />
+                        <p className="mt-4 text-2xl md:text-3xl font-serif italic text-brand-text-primary">
+                            "Passar da ideia para o enredo visual com os cartões de trama acelerou meu processo de escrita em semanas. Uma ferramenta indispensável para qualquer escritor sério."
+                        </p>
+                        <p className="mt-6 font-semibold text-brand-text-secondary">- R. D. Gomes, Autor de Mistério</p>
                     </div>
                 </section>
                 
-                {/* Pricing Section */}
-                <section className="py-20 px-4 bg-brand-surface/30">
-                    <div className="max-w-7xl mx-auto">
-                        <div className="text-center mb-12">
-                            <h2 className="text-4xl font-bold font-serif">Planos e Preços</h2>
-                            <p className="mt-3 text-brand-text-secondary max-w-2xl mx-auto">
-                                Escolha o plano perfeito para sua jornada de escrita. Comece com um teste gratuito de 7 dias nos planos pagos.
-                            </p>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 items-stretch">
-                           {/* Free Plan */}
-                            <div className="bg-brand-surface p-8 rounded-lg border border-brand-secondary h-full flex flex-col">
-                                <h3 className="text-2xl font-bold font-serif text-brand-text-primary">Gratuito</h3>
-                                <p className="my-4"><span className="text-4xl font-bold">R$0</span></p>
-                                <p className="text-brand-text-secondary mb-6 h-16">Perfeito para começar e testar as funcionalidades principais.</p>
-                                <ul className="space-y-3 text-brand-text-secondary flex-grow">
-                                    <li className="flex items-start gap-3"><CheckIcon className="text-green-500 w-5 h-5 flex-shrink-0 mt-1" /> 1 livro</li>
-                                    <li className="flex items-start gap-3"><CheckIcon className="text-green-500 w-5 h-5 flex-shrink-0 mt-1" /> Exportação em TXT</li>
-                                    <li className="flex items-start gap-3"><CheckIcon className="text-green-500 w-5 h-5 flex-shrink-0 mt-1" /> Uso limitado das ferramentas de IA</li>
-                                </ul>
-                                <button onClick={onStart} className="mt-8 w-full bg-brand-secondary text-white font-bold py-3 rounded-lg hover:bg-opacity-80 transition-colors">
-                                    Começar Gratuitamente
-                                </button>
-                            </div>
-                             {/* Hobby Plan */}
-                            <div className="bg-brand-surface p-8 rounded-lg border border-brand-secondary h-full flex flex-col">
-                                <h3 className="text-2xl font-bold font-serif text-brand-text-primary">Hobby</h3>
-                                <p className="my-4"><span className="text-4xl font-bold">R$19</span><span className="text-lg font-normal text-brand-text-secondary">/mês</span></p>
-                                <p className="text-brand-text-secondary mb-6 h-16">Para o escritor que está começando e quer explorar mais fundo.</p>
-                                <ul className="space-y-3 text-brand-text-secondary flex-grow">
-                                    <li className="flex items-start gap-3"><CheckIcon className="text-green-500 w-5 h-5 flex-shrink-0 mt-1" /> Até 5 livros</li>
-                                    <li className="flex items-start gap-3"><CheckIcon className="text-green-500 w-5 h-5 flex-shrink-0 mt-1" /> Geração de avatares com mais estilos</li>
-                                    <li className="flex items-start gap-3"><CheckIcon className="text-green-500 w-5 h-5 flex-shrink-0 mt-1" /> Central de Ideias</li>
-                                </ul>
-                                <button onClick={onStart} className="mt-8 w-full bg-brand-secondary text-white font-bold py-3 rounded-lg hover:bg-opacity-80 transition-colors">
-                                    Começar Teste Gratuito
-                                </button>
-                            </div>
-                             {/* Amador Plan */}
-                            <div className="bg-gradient-pricing text-white p-8 rounded-xl relative h-full flex flex-col transform lg:scale-105 shadow-2xl shadow-brand-primary/20">
-                                <div className="absolute top-0 -translate-y-1/2 left-1/2 -translate-x-1/2 bg-brand-primary text-white text-sm font-bold px-4 py-1.5 rounded-full shadow-lg">MAIS POPULAR</div>
-                                <h3 className="text-2xl font-bold font-serif text-blue-200 [text-shadow:_0_1px_2px_rgba(0,0,0,0.5)]">Amador</h3>
-                                <p className="my-4"><span className="text-5xl font-bold text-white">R$29</span><span className="text-lg font-normal text-gray-200">/mês</span></p>
-                                <p className="text-gray-200 mb-6 h-16">As ferramentas essenciais para levar sua escrita ao próximo nível.</p>
-                                <ul className="space-y-3 text-gray-100 flex-grow">
-                                    <li className="flex items-start gap-3"><CheckIcon className="text-brand-primary w-5 h-5 flex-shrink-0 mt-1 icon-shadow" /> Livros ilimitados</li>
-                                    <li className="flex items-start gap-3"><CheckIcon className="text-brand-primary w-5 h-5 flex-shrink-0 mt-1 icon-shadow" /> Análise de Trama e Repetição</li>
-                                    <li className="flex items-start gap-3"><CheckIcon className="text-brand-primary w-5 h-5 flex-shrink-0 mt-1 icon-shadow" /> Exportação em PDF e DOCX</li>
-                                </ul>
-                                <button onClick={onStart} className="mt-8 w-full bg-gradient-button text-white font-bold py-3 rounded-lg hover:opacity-90 transition-all transform hover:scale-105 shadow-lg">
-                                    Começar Teste Gratuito
-                                </button>
-                            </div>
-                             {/* Profissional Plan */}
-                            <div className="bg-brand-surface p-8 rounded-lg border border-brand-secondary h-full flex flex-col">
-                                <h3 className="text-2xl font-bold font-serif text-brand-text-primary">Profissional</h3>
-                                <p className="my-4"><span className="text-4xl font-bold">R$49</span><span className="text-lg font-normal text-brand-text-secondary">/mês</span></p>
-                                <p className="text-brand-text-secondary mb-6 h-16">O arsenal completo para o autor dedicado e focado na publicação.</p>
-                                <ul className="space-y-3 text-brand-text-secondary flex-grow">
-                                    <li className="flex items-start gap-3"><CheckIcon className="text-green-500 w-5 h-5 flex-shrink-0 mt-1" /> Tudo do plano Amador</li>
-                                    <li className="flex items-start gap-3"><CheckIcon className="text-green-500 w-5 h-5 flex-shrink-0 mt-1" /> Salvamento automático e versões</li>
-                                    <li className="flex items-start gap-3"><CheckIcon className="text-green-500 w-5 h-5 flex-shrink-0 mt-1" /> Suporte prioritário</li>
-                                </ul>
-                                <button onClick={onStart} className="mt-8 w-full bg-brand-secondary text-white font-bold py-3 rounded-lg hover:bg-opacity-80 transition-colors">
-                                    Começar Teste Gratuito
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                {/* Final CTA Section */}
-                <section className="py-20 px-4 text-center">
-                    <h2 className="text-4xl font-bold font-serif">Pronto para Desbloquear sua Criatividade?</h2>
-                    <p className="mt-3 text-brand-text-secondary">Dê vida às suas ideias hoje mesmo.</p>
+                {/* Final CTA */}
+                <section className="py-20 px-4 bg-brand-surface/30 text-center">
+                    <h2 className="text-4xl font-bold font-serif">Pronto para escrever sua obra-prima?</h2>
+                    <p className="mt-3 text-brand-text-secondary max-w-xl mx-auto">Junte-se a milhares de autores que confiam no Escritor IA para dar vida às suas histórias.</p>
                      <button
                         onClick={onStart}
-                        className="mt-8 bg-brand-primary text-white font-bold py-4 px-8 rounded-lg text-lg hover:bg-opacity-90 transition-all duration-300 transform hover:scale-105"
+                        className="mt-8 bg-brand-primary text-white font-bold py-4 px-10 rounded-lg text-xl hover:bg-opacity-90 transition-all duration-300 transform hover:scale-105"
                     >
-                        Comece sua Jornada Gratuitamente
+                        Começar Agora
                     </button>
                 </section>
             </main>
-
-            <footer className="text-center py-6 border-t border-brand-secondary">
-                <p className="text-brand-text-secondary text-sm">&copy; {new Date().getFullYear()} Simulador de Escritor IA. Todos os direitos reservados.</p>
-            </footer>
         </div>
     );
 };
