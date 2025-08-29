@@ -8,6 +8,9 @@ export interface Author {
     trialEnds?: string; // ISO string for trial end date
   };
   monthlyUsage: MonthlyUsage;
+  feedbackCredits: number;
+  bio: string;
+  isProfilePublic: boolean;
 }
 
 export interface MonthlyUsage {
@@ -158,6 +161,8 @@ export interface PlotData {
 
 export interface Story extends StoryContent {
   id: string;
+  authorId: string;
+  isPublished: boolean;
   analysis: StoryAnalysis;
   chatHistory: Message[];
   versions: Version[];
@@ -166,6 +171,18 @@ export interface Story extends StoryContent {
   plot: PlotData;
 }
 
+// Views for the main hub (outside a specific story)
+export enum MainAppView {
+  BOOKSHELF,
+  SHOWCASE,
+  BETA_READER_HUB,
+  FORUM,
+  RESOURCES,
+  PROFILE,
+}
+
+
+// Views for the focused writing dashboard (inside a story)
 export enum AppView {
   OVERVIEW,
   CHAPTERS,
@@ -197,4 +214,81 @@ export interface ShowDontTellSuggestion {
   originalText: string;
   suggestions: string[];
   explanation: string;
+}
+
+// --- Beta Reading Feature Types ---
+
+export interface BetaFeedback {
+  id: string;
+  reviewerId: string; // author ID of the reviewer
+  reviewerName:string;
+  strengths: string;
+  improvements: string;
+  specificNotes: string;
+  submittedAt: string; // ISO string
+}
+
+export interface BetaReadingRequest {
+  id: string;
+  authorId: string;
+  authorName: string;
+  storyId: string;
+  chapterId: string;
+  storyGenre: string;
+  chapterTitle: string;
+  wordCount: number;
+  feedbackSought: string[]; // e.g., ["Ritmo", "Diálogo"]
+  status: 'pending' | 'claimed' | 'completed';
+  submittedAt: string; // ISO string
+  claimedBy?: {
+    id: string;
+    name: string;
+  };
+  feedback: BetaFeedback[];
+}
+
+// --- Forum Feature Types ---
+
+export interface ForumPost {
+  id: string;
+  authorId: string;
+  authorName: string;
+  title: string;
+  content: string;
+  category: string;
+  createdAt: string; // ISO string
+  upvotes: string[]; // array of authorIds who upvoted
+  replyIds: string[];
+}
+
+export interface ForumReply {
+  id: string;
+  postId: string;
+  authorId: string;
+  authorName: string;
+  content: string;
+  createdAt: string; // ISO string
+  upvotes: string[]; // array of authorIds who upvoted
+  isChallengeSubmission?: boolean;
+}
+
+export interface WeeklyChallenge {
+  id: string;
+  prompt: string;
+  createdAt: string; // ISO string
+  expiresAt: string; // ISO string
+}
+
+// --- Blog/Resources Feature Types ---
+
+export interface BlogPost {
+  id: string;
+  title: string;
+  category: string; // e.g., 'Técnica', 'Inspiração', 'Marketing'
+  content: string; // Markdown/HTML content
+  createdAt: string; // ISO string
+  imageUrl: string;
+  readTimeMinutes: number;
+  summaryPoints?: string[];
+  interactiveWidget?: 'show-dont-tell';
 }

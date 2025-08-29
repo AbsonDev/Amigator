@@ -1,9 +1,8 @@
-
-
 import React, { createContext, useState, useContext, useMemo, useCallback, useEffect } from 'react';
 import type { Story } from '../types';
 import useLocalStorage from '../hooks/useLocalStorage';
 import { generateStoryStructure, importStoryFromText } from '../services/geminiService';
+import { useAuthor } from './AuthorContext';
 
 interface StoryContextType {
   stories: Story[];
@@ -14,6 +13,7 @@ interface StoryContextType {
   error: string | null;
   selectStory: (storyId: string) => void;
   updateActiveStory: (updater: (story: Story) => Story) => void;
+  updateStory: (storyId: string, updater: (story: Story) => Story) => void;
   startNewStory: () => void;
   returnToBookshelf: () => void;
   createStory: (genre: string, theme: string, prompt: string) => Promise<void>;
@@ -37,18 +37,20 @@ export const StoryProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { author } = useAuthor();
 
   // Effect to migrate old story data structures on load
   useEffect(() => {
-    // This check is very lightweight and runs only once.
-    if (stories.length > 0) {
+    if (stories.length > 0 && author) {
         const needsMigration = stories.some(story => 
             !story.world || 
             !story.analysis || 
             !story.actionLog || 
             !story.plot ||
             !story.analysis.pacing ||
-            !story.analysis.characterVoices
+            !story.analysis.characterVoices ||
+            !story.authorId ||
+            story.isPublished === undefined
         );
         if (needsMigration) {
             setStories(currentStories => 
@@ -64,6 +66,8 @@ export const StoryProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
                     return {
                         ...story,
+                        authorId: story.authorId || author.id,
+                        isPublished: story.isPublished || false,
                         world: story.world || [],
                         analysis: migratedAnalysis,
                         actionLog: story.actionLog || [],
@@ -75,7 +79,7 @@ export const StoryProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             );
         }
     }
-  }, []); // The empty dependency array ensures this runs only once on mount.
+  }, [author, setStories]);
 
 
   const activeStory = useMemo(() => stories.find(s => s.id === activeStoryId) || null, [stories, activeStoryId]);
@@ -95,6 +99,17 @@ export const StoryProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
   }, [activeStoryId, setStories]);
   
+  const updateStory = useCallback((storyId: string, updater: (story: Story) => Story) => {
+    setStories(prevStories =>
+      prevStories.map(story => {
+        if (story.id === storyId) {
+          return updater(story);
+        }
+        return story;
+      })
+    );
+  }, [setStories]);
+  
   const startNewStory = () => {
     setIsCreating(true);
   };
@@ -105,10 +120,15 @@ export const StoryProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
   
   const createStory = useCallback(async (genre: string, theme: string, prompt: string) => {
+    if (!author) {
+        alert("Você precisa estar logado para criar uma história.");
+        return;
+    }
     setIsLoading(true);
     setError(null);
     try {
-      const newStory = await generateStoryStructure(genre, theme, prompt);
+      // FIX: Pass author.id to generateStoryStructure and remove redundant property assignments.
+      const newStory = await generateStoryStructure(genre, theme, prompt, author.id);
       setStories(prevStories => [...prevStories, newStory]);
       setActiveStoryId(newStory.id);
       setIsCreating(false);
@@ -119,13 +139,18 @@ export const StoryProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } finally {
       setIsLoading(false);
     }
-  }, [setStories]);
+  }, [setStories, author]);
 
   const importStory = useCallback(async (textContent: string) => {
+    if (!author) {
+        alert("Você precisa estar logado para importar uma história.");
+        return;
+    }
     setIsLoading(true);
     setError(null);
     try {
-        const newStory = await importStoryFromText(textContent);
+        // FIX: Pass author.id to importStoryFromText and remove redundant property assignments.
+        const newStory = await importStoryFromText(textContent, author.id);
         setStories(prevStories => [...prevStories, newStory]);
     } catch (err) {
       const errorMessage = (err instanceof Error) ? err.message : "An unknown error occurred during import.";
@@ -134,7 +159,7 @@ export const StoryProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } finally {
         setIsLoading(false);
     }
-  }, [setStories]);
+  }, [setStories, author]);
   
   const deleteStory = useCallback((storyId: string) => {
     setStories(prevStories => prevStories.filter(story => story.id !== storyId));
@@ -152,6 +177,7 @@ export const StoryProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     error,
     selectStory,
     updateActiveStory,
+    updateStory,
     startNewStory,
     returnToBookshelf,
     createStory,

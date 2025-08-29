@@ -170,9 +170,11 @@ const HistoryViewer: React.FC<HistoryViewerProps> = ({ openUpgradeModal }) => {
                                             <p className={`font-semibold text-brand-text-primary ${version.name.startsWith('Autosave') ? 'italic' : ''}`}>{version.name}</p>
                                             <p className="text-xs text-brand-text-secondary">Salvo em: {new Date(version.createdAt).toLocaleString()}</p>
                                         </div>
-                                        <div className="flex gap-2">
+                                        <div className="flex gap-2 items-center">
                                             <button onClick={() => setViewingVersion(version)} className="text-sm bg-brand-secondary text-white font-semibold py-1.5 px-3 rounded-md hover:bg-opacity-80">Visualizar</button>
-                                            <button onClick={() => handleProFeatureClick(() => setVersionToRestore(version))} className="text-sm bg-brand-primary text-white font-semibold py-1.5 px-3 rounded-md hover:bg-opacity-80">Restaurar</button>
+                                            <button onClick={() => handleProFeatureClick(() => setVersionToRestore(version))} className="text-sm bg-brand-primary text-white font-semibold py-1.5 px-3 rounded-md hover:bg-opacity-80 flex items-center gap-1.5">
+                                                Restaurar {!isProfissional && <LockClosedIcon className="w-3 h-3 text-yellow-300" />}
+                                            </button>
                                         </div>
                                     </div>
                                 ))}
@@ -224,7 +226,7 @@ const HistoryViewer: React.FC<HistoryViewerProps> = ({ openUpgradeModal }) => {
                            {viewingVersion.storyState.chapters.map(c => (
                                <div key={c.id} className="mb-6">
                                    <h2 className="text-2xl font-bold mb-2">{c.title}</h2>
-                                   <p className="whitespace-pre-wrap leading-relaxed">{c.content}</p>
+                                   <div className="prose-chat" dangerouslySetInnerHTML={{ __html: c.content }}></div>
                                </div>
                            ))}
                        </div>

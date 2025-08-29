@@ -168,7 +168,8 @@ const PacingAnalyzer: React.FC<PacingAnalyzerProps> = ({ onNavigateToChapter, op
                     <h1 className="text-3xl font-bold font-serif text-brand-text-primary">Analisador de Ritmo e Tensão</h1>
                     <p className="text-brand-text-secondary max-w-2xl">Visualize o fluxo emocional da sua história, identifique seções lentas e garanta que seus momentos de clímax tenham o impacto desejado.</p>
                 </div>
-                 <button onClick={handleAnalyze} disabled={isLoading} className="flex-shrink-0 flex items-center gap-2 bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-90 transition-all disabled:opacity-50">
+                 <button onClick={handleAnalyze} disabled={isLoading} className="relative flex-shrink-0 flex items-center gap-2 bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-90 transition-all disabled:opacity-50">
+                    {!isPro && <span className="absolute -top-2 -right-2 text-xs bg-yellow-500 text-black font-bold px-2 py-0.5 rounded-full">PRO</span>}
                     {isLoading ? <><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> Analisando...</> : <><SparklesIcon className="w-5 h-5" /> Analisar Ritmo</>}
                  </button>
             </div>

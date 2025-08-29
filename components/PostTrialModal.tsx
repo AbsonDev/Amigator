@@ -1,7 +1,9 @@
 
-import React from 'react';
+
+import React, { useRef } from 'react';
 import Modal from './common/Modal';
 import { SparklesIcon, LockClosedIcon } from './Icons';
+import useClickSpark from '../hooks/useClickSpark';
 
 interface PostTrialModalProps {
   onClose: () => void;
@@ -17,6 +19,9 @@ const lostFeatures = [
 ];
 
 const PostTrialModal: React.FC<PostTrialModalProps> = ({ onClose, onUpgrade }) => {
+  const upgradeButtonRef = useRef<HTMLButtonElement>(null);
+  useClickSpark(upgradeButtonRef);
+
   return (
     <Modal isOpen={true} onClose={onClose} title="Seu teste do plano Amador terminou" className="max-w-xl">
       <div className="p-8 text-center">
@@ -48,6 +53,7 @@ const PostTrialModal: React.FC<PostTrialModalProps> = ({ onClose, onUpgrade }) =
 
         <div className="mt-6">
           <button 
+            ref={upgradeButtonRef}
             onClick={onUpgrade} 
             className="w-full bg-brand-primary text-white font-bold py-3 rounded-lg hover:bg-opacity-90 transition-transform transform hover:scale-105"
           >

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuthor } from '../../context/AuthorContext';
 import { SparklesIcon } from '../Icons';
+import useClickSpark from '../../hooks/useClickSpark';
 
 interface SignUpProps {
   onSwitchToLogin: () => void;
@@ -13,6 +14,8 @@ const SignUp: React.FC<SignUpProps> = ({ onSwitchToLogin }) => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { signUp } = useAuthor();
+  const signUpButtonRef = useRef<HTMLButtonElement>(null);
+  useClickSpark(signUpButtonRef);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,6 +79,7 @@ const SignUp: React.FC<SignUpProps> = ({ onSwitchToLogin }) => {
             </div>
             <button
               type="submit"
+              ref={signUpButtonRef}
               disabled={isLoading}
               className="w-full flex items-center justify-center gap-2 bg-brand-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-opacity-90 transition-all duration-300 transform hover:scale-105 disabled:bg-gray-500 disabled:cursor-not-allowed"
             >

@@ -39,20 +39,24 @@ const PlotVisualizer: React.FC = () => {
         try {
             const suggestions = await suggestPlotPointsFromSummaries(activeStory);
             const existingCards = plotData.cards;
-            const lastCardPos = existingCards.length > 0 ? existingCards[existingCards.length - 1].position : { x: 0, y: 0 };
-            
+
+            // Find the bottom-most coordinate of existing cards to stack new ones below.
+            const bottomY = existingCards.length > 0 ? Math.max(...existingCards.map(c => c.position.y)) + 200 : 50; // Add card height + gap
+            const startX = 50;
+
             const newCards: PlotCard[] = suggestions.map((suggestion, index) => ({
                 ...suggestion,
                 id: `plot-${Date.now()}-${index}`,
                 position: {
-                    x: lastCardPos.x + (index % 3) * 280,
-                    y: lastCardPos.y + Math.floor(index / 3) * 200,
+                    x: startX + (index % 4) * 280, // 4 cards per row, 256 width + 24 gap
+                    y: bottomY + Math.floor(index / 4) * 200, // 180 height + 20 gap
                 },
             }));
 
             updateActiveStory(story => ({
                 ...story,
                 plot: { ...story.plot, cards: [...story.plot.cards, ...newCards] },
+                actionLog: [...story.actionLog, { id: `log-${Date.now()}`, timestamp: new Date().toISOString(), actor: 'agent', action: `Sugeriu ${newCards.length} pontos de trama com IA.`}]
             }));
         } catch (e) {
             alert((e as Error).message);

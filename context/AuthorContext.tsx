@@ -4,7 +4,10 @@ import useLocalStorage from '../hooks/useLocalStorage';
 
 interface AuthorContextType {
   author: Author | null;
+  users: Author[];
   setAuthor: React.Dispatch<React.SetStateAction<Author | null>>;
+  // FIX: Expose setUsers to allow components to update the global users list.
+  setUsers: React.Dispatch<React.SetStateAction<Author[]>>;
   signUp: (name: string, email: string, password: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
@@ -20,6 +23,20 @@ export const AuthorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [showPostTrialModal, setShowPostTrialModal] = useState(false);
   
   useEffect(() => {
+    // Migrate all users data structure
+    if (users.length > 0) {
+        const needsMigration = users.some(u => u.bio === undefined || u.isProfilePublic === undefined);
+        if (needsMigration) {
+            setUsers(currentUsers =>
+                currentUsers.map(user => ({
+                    ...user,
+                    bio: user.bio || '',
+                    isProfilePublic: user.isProfilePublic || false,
+                }))
+            );
+        }
+    }
+
     if (author) {
       let needsUpdate = false;
       const updatedAuthor = { ...author };
@@ -42,6 +59,21 @@ export const AuthorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         updatedAuthor.monthlyUsage = {};
         needsUpdate = true;
       }
+      
+      if (author.feedbackCredits === undefined) {
+        updatedAuthor.feedbackCredits = 0;
+        needsUpdate = true;
+      }
+      
+      if (author.bio === undefined) {
+        updatedAuthor.bio = '';
+        needsUpdate = true;
+      }
+
+      if (author.isProfilePublic === undefined) {
+        updatedAuthor.isProfilePublic = false;
+        needsUpdate = true;
+      }
 
       if (needsUpdate) {
         setAuthor(updatedAuthor);
@@ -50,7 +82,7 @@ export const AuthorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [author?.id]);
 
   const signUp = useCallback(async (name: string, email: string, password: string) => {
     const existingUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
@@ -71,6 +103,9 @@ export const AuthorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         trialEnds: trialEndDate.toISOString(),
       },
       monthlyUsage: {},
+      feedbackCredits: 1, // Start with one credit to encourage participation
+      bio: '',
+      isProfilePublic: false,
     };
 
     setUsers(prev => [...prev, newUser]);
@@ -94,7 +129,7 @@ export const AuthorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setShowPostTrialModal(false);
   };
   
-  const value = { author, setAuthor, signUp, login, logout, showPostTrialModal, closePostTrialModal };
+  const value = { author, users, setAuthor, setUsers, signUp, login, logout, showPostTrialModal, closePostTrialModal };
 
   return <AuthorContext.Provider value={value}>{children}</AuthorContext.Provider>;
 };

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useAuthor } from '../../context/AuthorContext';
 import { PencilIcon } from '../Icons';
+import useClickSpark from '../../hooks/useClickSpark';
 
 interface LoginProps {
   onSwitchToSignUp: () => void;
@@ -12,6 +13,8 @@ const Login: React.FC<LoginProps> = ({ onSwitchToSignUp }) => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuthor();
+  const loginButtonRef = useRef<HTMLButtonElement>(null);
+  useClickSpark(loginButtonRef);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +66,7 @@ const Login: React.FC<LoginProps> = ({ onSwitchToSignUp }) => {
             </div>
             <button
               type="submit"
+              ref={loginButtonRef}
               disabled={isLoading}
               className="w-full flex items-center justify-center gap-2 bg-brand-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-opacity-90 transition-all duration-300 transform hover:scale-105 disabled:bg-gray-500 disabled:cursor-not-allowed"
             >

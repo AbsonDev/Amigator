@@ -1,15 +1,14 @@
-
 import React, { useState, useMemo } from 'react';
 import type { Chapter } from '../types';
 import { AppView } from '../types';
-import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, GlobeAltIcon, ArrowDownTrayIcon, ClockIcon, ChevronDoubleLeftIcon, LockClosedIcon, WandSparklesIcon, PhotoIcon, NetworkIcon, ChevronDoubleRightIcon, ChartBarIcon, ArrowLeftOnRectangleIcon } from './Icons';
+import { BookOpenIcon, UsersIcon, HomeIcon, PencilIcon, GlobeAltIcon, ArrowDownTrayIcon, ClockIcon, ChevronDoubleLeftIcon, LockClosedIcon, PhotoIcon, NetworkIcon, ChevronDoubleRightIcon, ChartBarIcon, ArrowLeftOnRectangleIcon } from './Icons';
 import CharacterEditor from './CharacterEditor';
 import ChapterOrganizer from './ChapterOrganizer';
 import ChapterEditor from './ChapterEditor';
 import AgentChatbot from './AgentChatbot';
 import WorldBuilder from './WorldBuilder';
 import HistoryViewer from './HistoryViewer';
-import AuthorTools from './AuthorTools';
+import AuthorTools from './dashboard/AuthorTools';
 import { useStory } from '../context/StoryContext';
 import { jsPDF } from 'jspdf';
 import { Document, Packer, Paragraph, HeadingLevel } from 'docx';
@@ -20,7 +19,7 @@ import CoverDesigner from './CoverDesigner';
 import PlotVisualizer from './PlotVisualizer';
 import PacingAnalyzer from './PacingAnalyzer';
 import ManuscriptView from './ManuscriptView';
-
+import EditableField from './common/EditableField';
 
 interface DashboardProps {
   goToBookshelf: () => void;
@@ -160,8 +159,23 @@ const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
       case AppView.OVERVIEW:
         return (
           <div className="p-4 sm:p-6 md:p-8">
-            <h1 className="text-4xl font-bold font-serif text-brand-text-primary">{activeStory?.title}</h1>
-            <p className="text-brand-text-secondary font-serif italic mt-2">{activeStory?.synopsis}</p>
+            <EditableField
+              as="h1"
+              initialValue={activeStory?.title || ''}
+              onSave={(newTitle) => updateActiveStory(story => ({ ...story, title: newTitle }))}
+              className="text-4xl font-bold font-serif text-brand-text-primary"
+              inputClassName="w-full"
+              placeholder="Título da História"
+            />
+            <EditableField
+              as="p"
+              initialValue={activeStory?.synopsis || ''}
+              onSave={(newSynopsis) => updateActiveStory(story => ({ ...story, synopsis: newSynopsis }))}
+              className="text-brand-text-secondary font-serif italic mt-2"
+              inputClassName="w-full"
+              placeholder="Clique para adicionar uma sinopse..."
+              multiline
+            />
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-8">
               <StatCard label="Contagem de Palavras" value={wordCount.toLocaleString('pt-BR')} />
               <StatCard label="Capítulos" value={activeStory?.chapters.length || 0} />
@@ -210,7 +224,7 @@ const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
       {/* Sidebar Navigation */}
       <nav className={`bg-brand-surface border-r border-brand-secondary flex flex-col transition-all duration-300 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
         <div className="flex items-center justify-between p-4 h-16 border-b border-brand-secondary">
-          {!isSidebarCollapsed && <span className="font-bold text-lg">{author?.name}</span>}
+          {!isSidebarCollapsed && <span className="font-bold text-lg truncate" title={activeStory.title}>{activeStory.title}</span>}
           <button onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} className="p-2 rounded-md hover:bg-brand-secondary">
             {isSidebarCollapsed ? <ChevronDoubleRightIcon className="w-5 h-5" /> : <ChevronDoubleLeftIcon className="w-5 h-5" />}
           </button>
@@ -250,7 +264,9 @@ const Dashboard: React.FC<DashboardProps> = ({ goToBookshelf }) => {
           </div>
         )}
         <div className="flex-grow overflow-y-auto">
-            {renderView()}
+            <div key={currentView} className="animate-fadeInUp">
+                {renderView()}
+            </div>
         </div>
       </main>
 

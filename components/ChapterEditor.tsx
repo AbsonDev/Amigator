@@ -5,10 +5,12 @@ import {
     BoldIcon, ItalicIcon, UnderlineIcon, ListBulletIcon, ListOrderedIcon, AlignLeftIcon, AlignCenterIcon, AlignRightIcon, EyeIcon
 } from './Icons';
 import { useStory } from '../context/StoryContext';
-import { continueWriting, formatTextWithAI, analyzeShowDontTell, checkLoreConsistency } from '../../services/geminiService';
+import { continueWriting, formatTextWithAI, analyzeShowDontTell, checkLoreConsistency, generateCharacterDialogue } from '../services/geminiService';
 import FeedbackModal from './editor/FeedbackModal';
 import ModifyTextModal from './editor/ModifyTextModal';
 import GrammarModal from './editor/GrammarModal';
+import useClickSpark from '../hooks/useClickSpark';
+import EditableField from './common/EditableField';
 import debounce from 'lodash.debounce';
 
 interface ChapterEditorProps {
@@ -66,10 +68,29 @@ interface SdtPopoverProps {
     suggestion: ShowDontTellSuggestion;
     position: { top: number; left: number };
     onSelect: (replacement: string) => void;
+    containerRef: React.RefObject<HTMLDivElement>;
 }
 
-const SdtPopover: React.FC<SdtPopoverProps> = ({ suggestion, position, onSelect }) => (
+const SdtPopover: React.FC<SdtPopoverProps> = ({ suggestion, position, onSelect, containerRef }) => {
+    const popoverRef = useRef<HTMLDivElement>(null);
+
+    const handleMouseEnter = () => {
+        if(containerRef.current) {
+            containerRef.current.dataset.popoverHover = 'true';
+        }
+    };
+    
+    const handleMouseLeave = () => {
+         if(containerRef.current) {
+            containerRef.current.dataset.popoverHover = 'false';
+        }
+    };
+
+    return (
     <div
+        ref={popoverRef}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
         className="fixed z-30 bg-brand-surface p-4 rounded-lg border border-brand-secondary shadow-xl w-full max-w-md text-sm transition-opacity duration-200"
         style={{ top: position.top, left: position.left, transform: 'translateY(10px)' }}
     >
@@ -86,7 +107,8 @@ const SdtPopover: React.FC<SdtPopoverProps> = ({ suggestion, position, onSelect 
             ))}
         </div>
     </div>
-);
+    );
+};
 
 
 // --- Formatting Toolbar Component ---
@@ -125,10 +147,55 @@ const FormattingToolbar: React.FC<{ onMagicFormat: () => void, isFormatting: boo
     );
 };
 
+// --- Dialogue Context Menu Component ---
+interface DialogueContextMenuProps {
+    characters: Character[];
+    position: { top: number; left: number };
+    onSelect: (character: Character) => void;
+    onClose: () => void;
+}
+
+const DialogueContextMenu: React.FC<DialogueContextMenuProps> = ({ characters, position, onSelect, onClose }) => {
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                onClose();
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [onClose]);
+
+    return (
+        <div
+            ref={menuRef}
+            className="fixed z-40 bg-brand-surface border border-brand-secondary rounded-lg shadow-xl py-2 w-60"
+            style={{ top: position.top, left: position.left }}
+        >
+            <p className="px-3 py-1 text-xs font-semibold text-brand-text-secondary uppercase">Gerar Diálogo para...</p>
+            <div className="max-h-60 overflow-y-auto">
+                {characters.map(char => (
+                    <button
+                        key={char.id}
+                        onClick={() => onSelect(char)}
+                        className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-brand-primary/20"
+                    >
+                        <img src={char.avatarUrl} alt={char.name} className="w-6 h-6 rounded-full object-cover" />
+                        <span className="text-sm text-brand-text-primary">{char.name}</span>
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 
 const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
   const { activeStory, updateActiveStory } = useStory();
   const editorRef = useRef<HTMLDivElement>(null);
+  const sdtPopoverContainerRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState('');
   const [wordCount, setWordCount] = useState(() => stripHtml(chapter.content).split(/\s+/).filter(Boolean).length);
 
@@ -136,9 +203,19 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
   const [isLoadingContinue, setIsLoadingContinue] = useState(false);
   const [isFormatting, setIsFormatting] = useState(false);
   const [isAnalyzingSdt, setIsAnalyzingSdt] = useState(false);
+  const [isGeneratingDialogue, setIsGeneratingDialogue] = useState(false);
   
   // Modal states
+  const backButtonRef = useRef<HTMLButtonElement>(null);
+  const saveButtonRef = useRef<HTMLButtonElement>(null);
+
+  useClickSpark(backButtonRef);
+  useClickSpark(saveButtonRef);
+
   const [activeModal, setActiveModal] = useState<'feedback' | 'modify' | 'grammar' | null>(null);
+
+  // Context Menu state
+  const [contextMenu, setContextMenu] = useState<{ visible: boolean; position: { top: number; left: number }; range: Range | null }>({ visible: false, position: { top: 0, left: 0 }, range: null });
 
   // World-Building state
   const [popover, setPopover] = useState<{ visible: boolean; position: { top: number; left: number }; entity: WorldEntity | null, inconsistency: string | null }>({ visible: false, position: { top: 0, left: 0 }, entity: null, inconsistency: null });
@@ -169,6 +246,16 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
         setWordCount(stripHtml(chapter.content).split(/\s+/).filter(Boolean).length);
     }
   }, [chapter.id]);
+
+  const handleUpdateChapterDetails = (field: 'title' | 'summary', value: string) => {
+      updateActiveStory(story => ({
+          ...story,
+          chapters: story.chapters.map(c => 
+            c.id === chapter.id ? { ...c, [field]: value } : c
+          )
+      }));
+  };
+
 
   const debouncedAutosave = useMemo(
     () => debounce((currentContent: string) => {
@@ -364,8 +451,10 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
   useEffect(() => {
       document.addEventListener('selectionchange', handleSelectionChange);
       const editorDiv = editorRef.current;
-      
+      let hidePopoverTimeout: ReturnType<typeof setTimeout>;
+
       const handleMouseOver = (e: MouseEvent) => {
+          clearTimeout(hidePopoverTimeout);
           const target = e.target as HTMLElement;
           const highlight = target.closest<HTMLElement>('.world-entry-highlight, .lore-inconsistency-highlight');
           
@@ -390,8 +479,12 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
       };
 
       const handleMouseOut = (e: MouseEvent) => {
-        setPopover(p => ({ ...p, visible: false }));
-        setSdtPopover(p => ({ ...p, visible: false, range: null }));
+          hidePopoverTimeout = setTimeout(() => {
+              if (sdtPopoverContainerRef.current?.dataset.popoverHover !== 'true') {
+                  setPopover(p => ({ ...p, visible: false }));
+                  setSdtPopover(p => ({ ...p, visible: false, range: null }));
+              }
+          }, 100);
       };
 
       editorDiv?.addEventListener('mouseover', handleMouseOver);
@@ -406,6 +499,7 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
           debouncedAutosave.cancel();
           highlightTerms.cancel();
           runConsistencyCheck.cancel();
+          clearTimeout(hidePopoverTimeout);
       };
   }, [handleSelectionChange, debouncedAutosave, highlightTerms, worldEntities, isSdtModeActive, sdtSuggestions, runConsistencyCheck, inconsistencies]);
 
@@ -534,6 +628,47 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
     }
   };
 
+  const handleContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    
+    setContextMenu({
+        visible: true,
+        position: { top: e.clientY, left: e.clientX },
+        range: selection.getRangeAt(0).cloneRange()
+    });
+  };
+
+  const handleSelectCharacterForDialogue = async (character: Character) => {
+    if (!contextMenu.range || !activeStory) return;
+    
+    setContextMenu({ ...contextMenu, visible: false });
+    setIsGeneratingDialogue(true);
+    try {
+        const range = contextMenu.range;
+        const startContainer = range.startContainer;
+        const parentParagraph = startContainer.nodeType === Node.TEXT_NODE
+            ? startContainer.parentElement?.closest('p, div')
+            : (startContainer as Element).closest('p, div');
+
+        const recentContext = parentParagraph ? parentParagraph.textContent || '' : '';
+        
+        const dialogue = await generateCharacterDialogue(activeStory, character, recentContext);
+        
+        const selection = window.getSelection();
+        if (selection) {
+            selection.removeAllRanges();
+            selection.addRange(contextMenu.range);
+            document.execCommand('insertText', false, dialogue);
+        }
+    } catch(error) {
+        alert((error as Error).message);
+    } finally {
+        setIsGeneratingDialogue(false);
+    }
+  };
+
   const getCurrentContent = () => editorRef.current ? editorRef.current.innerHTML : '';
 
   return (
@@ -541,12 +676,24 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
       <div className="relative p-4 sm:p-6 md:p-8 flex flex-col h-full overflow-hidden">
           <div className="flex justify-between items-start mb-4 gap-4">
               <div>
-                  <h1 className="text-3xl font-bold font-serif text-brand-text-primary">{chapter.title}</h1>
-                  <p className="text-brand-text-secondary">{chapter.summary}</p>
+                  <EditableField
+                      as="h1"
+                      initialValue={chapter.title}
+                      onSave={(newTitle) => handleUpdateChapterDetails('title', newTitle)}
+                      className="text-3xl font-bold font-serif text-brand-text-primary"
+                      inputClassName="w-full"
+                  />
+                  <EditableField
+                      as="p"
+                      initialValue={chapter.summary}
+                      onSave={(newSummary) => handleUpdateChapterDetails('summary', newSummary)}
+                      className="text-brand-text-secondary"
+                      inputClassName="w-full"
+                  />
               </div>
               <div className="flex gap-2 flex-shrink-0">
-                   <button onClick={onBack} className="bg-brand-secondary text-brand-text-primary font-semibold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-colors">Voltar</button>
-                  <button onClick={handleSave} className="bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-90 transition-colors">Salvar Capítulo</button>
+                   <button ref={backButtonRef} onClick={onBack} className="bg-brand-secondary text-brand-text-primary font-semibold py-2 px-4 rounded-lg hover:bg-opacity-80 transition-colors">Voltar</button>
+                  <button ref={saveButtonRef} onClick={handleSave} className="bg-brand-primary text-white font-bold py-2 px-4 rounded-lg hover:bg-opacity-90 transition-colors">Salvar Capítulo</button>
               </div>
           </div>
 
@@ -568,9 +715,17 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
               </button>
           </div>
           
-          <div className="flex-grow flex flex-col bg-brand-background border-x border-b border-brand-secondary rounded-b-lg overflow-hidden">
+          <div className="flex-grow flex flex-col bg-brand-background border-x border-b border-brand-secondary rounded-b-lg overflow-hidden relative">
+             {isGeneratingDialogue && (
+                <div className="absolute inset-0 bg-black/50 z-30 flex items-center justify-center">
+                    <div className="text-center p-4 bg-brand-surface rounded-lg">
+                        <LoadingButtonSpinner />
+                        <p className="text-sm text-brand-text-secondary mt-2">Personagem pensando...</p>
+                    </div>
+                </div>
+             )}
              <FormattingToolbar onMagicFormat={handleMagicFormat} isFormatting={isFormatting} />
-             <div className="flex-grow p-8 overflow-y-auto">
+             <div className="flex-grow p-8 overflow-y-auto" onContextMenu={handleContextMenu}>
                 <div
                     ref={editorRef}
                     onInput={handleInput}
@@ -587,7 +742,17 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({ chapter, onBack }) => {
       </div>
       
       {popover.visible && (popover.entity || popover.inconsistency) && <InfoPopover entity={popover.entity} inconsistency={popover.inconsistency} position={popover.position} />}
-      {sdtPopover.visible && sdtPopover.suggestion && <SdtPopover suggestion={sdtPopover.suggestion} position={sdtPopover.position} onSelect={handleSelectSdtSuggestion} />}
+      <div ref={sdtPopoverContainerRef}>
+        {sdtPopover.visible && sdtPopover.suggestion && <SdtPopover suggestion={sdtPopover.suggestion} position={sdtPopover.position} onSelect={handleSelectSdtSuggestion} containerRef={sdtPopoverContainerRef} />}
+      </div>
+      {contextMenu.visible && activeStory && (
+        <DialogueContextMenu
+            characters={activeStory.characters}
+            position={contextMenu.position}
+            onSelect={handleSelectCharacterForDialogue}
+            onClose={() => setContextMenu({ ...contextMenu, visible: false })}
+        />
+      )}
 
       {activeModal === 'feedback' && <FeedbackModal chapterContent={getCurrentContent()} onClose={() => setActiveModal(null)} />}
       

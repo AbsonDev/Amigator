@@ -31,7 +31,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, children, title, classNa
       aria-labelledby="modal-title"
     >
       <div
-        className={`bg-brand-surface rounded-xl border border-brand-secondary w-full flex flex-col ${className}`}
+        className={`bg-brand-surface rounded-xl border border-brand-secondary w-full flex flex-col ${className} animate-zoomIn`}
         onClick={e => e.stopPropagation()}
       >
         {children}

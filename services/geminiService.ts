@@ -1,7 +1,9 @@
 
 
+
+
 import { GoogleGenAI, Type } from "@google/genai";
-import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory, StoryContent, Relationship, PlotCard, PacingPoint, CharacterVoiceDeviation, ShowDontTellSuggestion } from '../types';
+import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory, StoryContent, Relationship, PlotCard, PacingPoint, CharacterVoiceDeviation, ShowDontTellSuggestion, BlogPost } from '../types';
 
 if (!process.env.API_KEY) {
   throw new Error("API_KEY environment variable not set");
@@ -17,6 +19,46 @@ const stripHtml = (html: string) => {
     const doc = new DOMParser().parseFromString(html, 'text/html');
     return doc.body.textContent || "";
 };
+
+export const generateCharacterDialogue = async (story: Story, character: Character, recentContext: string): Promise<string> => {
+    const prompt = `
+        Aja como um ghostwriter especialista em diálogos de personagens.
+        Sua tarefa é escrever uma única e impactante linha de diálogo para um personagem específico, com base em sua personalidade e no contexto imediato da cena.
+
+        SOBRE A HISTÓRIA:
+        - Gênero: ${story.genre}
+        - Sinopse: ${story.synopsis}
+
+        SOBRE O PERSONAGEM QUE VAI FALAR:
+        - Nome: ${character.name}
+        - Papel: ${character.role}
+        - Personalidade e Motivações: ${character.description}
+
+        CONTEXTO DA CENA (O QUE ACONTECEU IMEDIATAMENTE ANTES):
+        ---
+        ${stripHtml(recentContext)}
+        ---
+
+        INSTRUÇÕES:
+        - Escreva UMA linha de diálogo para ${character.name}.
+        - A fala deve ser consistente com a personalidade do personagem e o tom da cena.
+        - Retorne APENAS o texto do diálogo. NÃO inclua aspas, nome do personagem ou atribuições como "ele disse".
+
+        DIÁLOGO:
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: GEMINI_FLASH_MODEL,
+            contents: prompt,
+        });
+        return response.text.trim();
+    } catch (error) {
+        console.error("Error generating character dialogue:", error);
+        throw new Error("Falha ao gerar o diálogo. Tente novamente.");
+    }
+};
+
 
 export const generateBookCover = async (prompt: string, style: string): Promise<string> => {
     const fullPrompt = `Capa de livro, estilo de ${style}. A imagem deve ser puramente artística, SEM NENHUM TEXTO, letras, palavras, títulos ou nomes de autor. Foco total na arte visual evocativa e profissional. Prompt do usuário: "${prompt}"`;
@@ -124,7 +166,11 @@ export const generateCharacterAvatar = async (appearance: string, genre: string,
   } catch (error: any) {
     console.error("Error generating character avatar:", error);
     let errorMessage = "Falha ao gerar o avatar. Usando uma imagem de fallback.";
-    if (error.message && (error.message.includes("quota") || error.message.includes("RESOURCE_EXHAUSTED"))) {
+    
+    // Make error checking more robust by stringifying the error object.
+    const errorString = JSON.stringify(error);
+
+    if (errorString.includes("quota") || errorString.includes("RESOURCE_EXHAUSTED")) {
         errorMessage = "Cota de geração de imagens excedida. Usando uma imagem de fallback.";
     }
     return { success: false, url: fallbackUrl, error: errorMessage };
@@ -138,7 +184,8 @@ const initialAnalysisState = {
     characterVoices: {},
 };
 
-export const generateStoryStructure = async (genre: string, theme: string, userPrompt: string): Promise<Story> => {
+// FIX: Added authorId parameter to satisfy the Story type contract on return.
+export const generateStoryStructure = async (genre: string, theme: string, userPrompt: string, authorId: string): Promise<Story> => {
   const prompt = `
     Gere uma estrutura de história completa em Português com base nos seguintes parâmetros.
     Gênero: ${genre}
@@ -170,7 +217,8 @@ export const generateStoryStructure = async (genre: string, theme: string, userP
               description: { type: Type.STRING, description: "Uma breve descrição da personalidade e motivações do personagem. NÃO inclua aparência física aqui." },
               role: { type: Type.STRING, description: "O papel do personagem na história (ex: Protagonista, Antagonista, Mentor, Alívio Cômico)." },
             },
-            required: ["name", "description", "role"]
+            required: ["name", "description", "role"],
+            propertyOrdering: ["name", "description", "role"]
           }
         },
         chapters: {
@@ -183,7 +231,8 @@ export const generateStoryStructure = async (genre: string, theme: string, userP
               summary: { type: Type.STRING, description: "Um resumo de uma frase dos principais eventos do capítulo." },
               content: { type: Type.STRING, description: "O conteúdo completo do capítulo inicial, que deve introduzir os personagens e a trama."}
             },
-            required: ["title", "summary", "content"]
+            required: ["title", "summary", "content"],
+            propertyOrdering: ["title", "summary", "content"]
           }
         }
       },
@@ -218,8 +267,11 @@ export const generateStoryStructure = async (genre: string, theme: string, userP
     }
     
     // Augment data with IDs and placeholders
+    // FIX: Added authorId and isPublished to satisfy the Story type contract.
     const storyWithIds: Story = {
       id: `story-${Date.now()}`,
+      authorId,
+      isPublished: false,
       genre,
       title: storyData.title,
       synopsis: storyData.synopsis,
@@ -475,7 +527,8 @@ export const analyzeRepetitions = async (story: Story): Promise<RepetitionIssue[
 };
 
 
-export const importStoryFromText = async (textContent: string): Promise<Story> => {
+// FIX: Added authorId parameter to satisfy the Story type contract on return.
+export const importStoryFromText = async (textContent: string, authorId: string): Promise<Story> => {
   const importedStorySchema = {
     type: Type.OBJECT,
     properties: {
@@ -542,8 +595,11 @@ export const importStoryFromText = async (textContent: string): Promise<Story> =
         });
     }
 
+    // FIX: Added authorId and isPublished to satisfy the Story type contract.
     const storyWithIds: Story = {
       id: `story-${Date.now()}`,
+      authorId,
+      isPublished: false,
       title: storyData.title,
       synopsis: storyData.synopsis,
       genre: storyData.genre,
@@ -1221,4 +1277,94 @@ export const generateStoryIdeas = async (genre: string): Promise<{ themes: strin
     console.error("Error generating story ideas:", error);
     throw new Error("Falha ao gerar ideias. Tente novamente.");
   }
+};
+
+export const generateWeeklyChallengePrompt = async (): Promise<string> => {
+  const prompt = `
+    Aja como um mestre de escrita criativa. Gere um único prompt de escrita desafiador e inspirador para um fórum de escritores.
+    O prompt deve ser aberto, instigante e aplicável a vários gêneros.
+    Deve ser uma única frase ou pergunta.
+
+    Exemplos de bons prompts:
+    - "Escreva uma cena que começa com la frase 'O mapa estava errado'."
+    - "Descreva um personagem encontrando um objeto que não deveria existir."
+    - "Um vilão percebe que está do lado errado da história. Escreva seu monólogo interior."
+
+    Retorne APENAS o texto do prompt.
+  `;
+  try {
+    const response = await ai.models.generateContent({
+      model: GEMINI_FLASH_MODEL,
+      contents: prompt,
+    });
+    return response.text.trim();
+  } catch (error) {
+    console.error("Error generating weekly challenge:", error);
+    throw new Error("Falha ao gerar o desafio da semana. Tente novamente.");
+  }
+};
+
+export const getAIFollowUp = async (articleContent: string, question: string): Promise<string> => {
+    const prompt = `
+        Aja como um mentor de escrita experiente e amigável. Um autor acabou de ler um artigo sobre escrita e tem uma pergunta de acompanhamento.
+        Sua tarefa é fornecer uma resposta útil, concisa e encorajadora com base no CONTEÚDO DO ARTIGO e na PERGUNTA DO AUTOR.
+
+        CONTEÚDO DO ARTIGO (use como sua base de conhecimento principal):
+        ---
+        ${stripHtml(articleContent)}
+        ---
+
+        PERGUNTA DO AUTOR:
+        ---
+        "${question}"
+        ---
+
+        INSTRUÇÕES:
+        - Baseie sua resposta diretamente no conteúdo do artigo.
+        - Mantenha a resposta focada, útil e com um tom de mentor.
+        - Se a pergunta não puder ser respondida com o artigo, explique isso educadamente e ofereça um conselho geral relacionado ao tópico.
+        - Retorne apenas o texto da sua resposta.
+    `;
+    try {
+        const response = await ai.models.generateContent({
+            model: GEMINI_FLASH_MODEL,
+            contents: prompt,
+        });
+        return response.text.trim();
+    } catch (error) {
+        console.error("Error getting AI follow-up:", error);
+        throw new Error("O Mentor de IA está ocupado no momento. Tente novamente em alguns instantes.");
+    }
+};
+
+const showDontTellAlternativesSchema = {
+    type: Type.ARRAY,
+    description: 'Uma lista de 2-3 alternativas reescritas que "mostram" a emoção ou estado, em vez de "contar".',
+    items: { type: Type.STRING }
+};
+
+export const generateShowDontTellAlternatives = async (tellingSentence: string): Promise<string[]> => {
+    const prompt = `
+        Aja como um coach de escrita criativa. A seguinte frase "conta" uma emoção ou estado: "${tellingSentence}".
+        Reescreva esta frase de 2 a 3 maneiras diferentes que "mostram" a mesma ideia através de ações, diálogos ou detalhes sensoriais.
+        Retorne suas sugestões em um array JSON.
+
+        Exemplo:
+        Frase: "Ele estava com medo."
+        Resultado: ["Seu coração martelava contra as costelas como um tambor de guerra.", "Ele recuou, com os olhos arregalados, um suor frio brotando em sua testa.", "Cada sombra no canto da sala parecia se contorcer, e ele não conseguia parar de tremer."]
+    `;
+    try {
+        const response = await ai.models.generateContent({
+            model: GEMINI_FLASH_MODEL,
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: showDontTellAlternativesSchema,
+            },
+        });
+        return JSON.parse(response.text);
+    } catch (error) {
+        console.error("Error generating 'Show, Don't Tell' alternatives:", error);
+        throw new Error("Falha ao gerar alternativas. Tente novamente.");
+    }
 };
