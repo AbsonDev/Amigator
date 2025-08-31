@@ -7,23 +7,30 @@ import { AppError } from '../middleware/errorHandler';
  * This is a secure proxy that keeps the API key on the server
  */
 export class GeminiService {
-  private genAI: GoogleGenerativeAI;
-  private model: any;
+  private genAI: GoogleGenerativeAI | null = null;
+  private model: any = null;
 
   constructor() {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('GEMINI_API_KEY not configured');
-    }
+    // Lazy initialization to ensure env vars are loaded
+  }
 
-    this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+  private ensureInitialized() {
+    if (!this.genAI) {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error('GEMINI_API_KEY not configured. Please set it in your .env file');
+      }
+
+      this.genAI = new GoogleGenerativeAI(apiKey);
+      this.model = this.genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    }
   }
 
   /**
    * Generate story structure
    */
   async generateStoryStructure(genre: string, theme: string, prompt: string, authorId: string) {
+    this.ensureInitialized();
     try {
       const fullPrompt = `
         Crie uma estrutura completa de história com os seguintes parâmetros:
@@ -86,6 +93,7 @@ export class GeminiService {
    * Generate chapter content
    */
   async generateChapter(storyContext: any, chapterPrompt: string, previousChapters?: any[]) {
+    this.ensureInitialized();
     try {
       const prompt = `
         Contexto da história: ${JSON.stringify(storyContext)}
@@ -114,6 +122,7 @@ export class GeminiService {
    * Generate character
    */
   async generateCharacter(storyContext: any, characterRole: string, characterTraits?: string) {
+    this.ensureInitialized();
     try {
       const prompt = `
         Contexto da história: ${JSON.stringify(storyContext)}
@@ -146,6 +155,7 @@ export class GeminiService {
    * Generate character dialogue
    */
   async generateCharacterDialogue(story: any, character: any, recentContext: string) {
+    this.ensureInitialized();
     try {
       const prompt = `
         História: ${story.synopsis}
@@ -171,6 +181,7 @@ export class GeminiService {
    * Generate book cover (mock - real implementation would use image generation API)
    */
   async generateBookCover(prompt: string, style: string) {
+    this.ensureInitialized();
     try {
       // Note: Google's Imagen API requires separate setup
       // This is a placeholder that returns a generated prompt for an image
@@ -198,6 +209,7 @@ export class GeminiService {
    * Analyze script issues
    */
   async analyzeScriptIssues(story: any) {
+    this.ensureInitialized();
     try {
       const prompt = `
         Analise a seguinte história e identifique problemas de roteiro:
@@ -232,6 +244,7 @@ export class GeminiService {
    * Detect repetitions
    */
   async detectRepetitions(chapters: any[]) {
+    this.ensureInitialized();
     try {
       const prompt = `
         Analise os seguintes capítulos e identifique repetições de:
@@ -264,6 +277,7 @@ export class GeminiService {
    * Analyze pacing
    */
   async analyzePacing(story: any) {
+    this.ensureInitialized();
     try {
       const prompt = `
         Analise o ritmo narrativo da história:
@@ -298,6 +312,7 @@ export class GeminiService {
    * Analyze character voice consistency
    */
   async analyzeCharacterVoice(story: any, characterId: string) {
+    this.ensureInitialized();
     try {
       const character = story.characters.find((c: any) => c.id === characterId);
       if (!character) {
@@ -334,6 +349,7 @@ export class GeminiService {
    * Format text with AI
    */
   async formatTextWithAI(text: string) {
+    this.ensureInitialized();
     try {
       const prompt = `
         Formate o seguinte texto para um manuscrito profissional:
@@ -361,6 +377,7 @@ export class GeminiService {
    * General chat
    */
   async chat(prompt: string, context?: any, model: string = 'gemini-flash') {
+    this.ensureInitialized();
     try {
       const fullPrompt = context 
         ? `Contexto: ${JSON.stringify(context)}\n\nPergunta: ${prompt}`
