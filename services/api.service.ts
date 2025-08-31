@@ -205,9 +205,24 @@ class ApiService {
   }
 
   async chat(prompt: string, context?: any, model?: string) {
+    // Validate prompt before sending
+    if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
+      throw new Error('Prompt is required and must be a non-empty string');
+    }
+    
+    // Ensure prompt is within valid length
+    const trimmedPrompt = prompt.trim();
+    if (trimmedPrompt.length > 10000) {
+      throw new Error('Prompt is too long (max 10000 characters)');
+    }
+    
     return this.request('/ai/chat', {
       method: 'POST',
-      body: JSON.stringify({ prompt, context, model })
+      body: JSON.stringify({ 
+        prompt: trimmedPrompt, 
+        context, 
+        model: model || 'gemini-flash' 
+      })
     });
   }
 

@@ -2,17 +2,34 @@
 
 
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { apiService } from './api.service';
 import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory, StoryContent, Relationship, PlotCard, PacingPoint, CharacterVoiceDeviation, ShowDontTellSuggestion, BlogPost } from '../types';
 
-if (!process.env.API_KEY) {
-  throw new Error("API_KEY environment variable not set");
+const GEMINI_FLASH_MODEL = 'gemini-flash';
+const GEMINI_PRO_MODEL = 'gemini-pro';
+
+// Helper function to call AI through backend
+async function callAI(prompt: string, context?: any, model: string = GEMINI_FLASH_MODEL): Promise<any> {
+  try {
+    const response = await apiService.chat(prompt, context, model);
+    if (response.data && response.data.response) {
+      // Try to parse JSON if the response looks like JSON
+      const responseText = response.data.response;
+      if (typeof responseText === 'string' && (responseText.trim().startsWith('{') || responseText.trim().startsWith('['))) {
+        try {
+          return JSON.parse(responseText);
+        } catch {
+          return responseText;
+        }
+      }
+      return responseText;
+    }
+    throw new Error('Invalid response from AI service');
+  } catch (error) {
+    console.error('Error calling AI service:', error);
+    throw error;
+  }
 }
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-const GEMINI_FLASH_MODEL = 'gemini-2.5-flash';
-const IMAGEN_MODEL = 'imagen-4.0-generate-001';
 
 // Helper to strip HTML tags for AI processing
 const stripHtml = (html: string) => {
@@ -48,11 +65,8 @@ export const generateCharacterDialogue = async (story: Story, character: Charact
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-        });
-        return response.text.trim();
+        const response = await callAI(prompt, { story, character, recentContext });
+        return typeof response === 'string' ? response.trim() : String(response).trim();
     } catch (error) {
         console.error("Error generating character dialogue:", error);
         throw new Error("Falha ao gerar o diálogo. Tente novamente.");
@@ -60,6 +74,8 @@ export const generateCharacterDialogue = async (story: Story, character: Charact
 };
 
 
+// Note: generateBookCover needs special handling as it uses IMAGEN model
+// For now, it will return a placeholder or use the backend's generateCover endpoint
 export const generateBookCover = async (prompt: string, style: string): Promise<string> => {
     const fullPrompt = `Capa de livro, estilo de ${style}. A imagem deve ser puramente artística, SEM NENHUM TEXTO, letras, palavras, títulos ou nomes de autor. Foco total na arte visual evocativa e profissional. Prompt do usuário: "${prompt}"`;
     try {
@@ -102,11 +118,8 @@ export const formatTextWithAI = async (text: string): Promise<string> => {
         ---
     `;
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-        });
-        return response.text.trim();
+        const response = await callAI(prompt, { text });
+        return typeof response === 'string' ? response.trim() : String(response).trim();
     } catch (error) {
         console.error("Error formatting text with AI:", error);
         throw new Error("Falha ao formatar o texto. Tente novamente.");
@@ -125,11 +138,8 @@ export const extractCharacterAppearance = async (fullText: string, characterName
     ---
   `;
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_FLASH_MODEL,
-      contents: prompt,
-    });
-    return response.text.trim();
+    const response = await callAI(prompt, { fullText, characterName });
+    return typeof response === 'string' ? response.trim() : String(response).trim();
   } catch (error) {
     console.error(`Error extracting appearance for ${characterName}:`, error);
     return "Nenhuma descrição física específica encontrada.";
@@ -240,16 +250,10 @@ export const generateStoryStructure = async (genre: string, theme: string, userP
   };
 
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_FLASH_MODEL,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: generationSchema,
-      },
-    });
-
-    const storyData = JSON.parse(response.text);
+    const fullPrompt = prompt + `\n\nRetorne o resultado EXATAMENTE no formato JSON especificado, sem explicações adicionais.`;
+    const response = await callAI(fullPrompt, { genre, theme, userPrompt });
+    
+    const storyData = typeof response === 'object' ? response : JSON.parse(response);
     const fullText = storyData.chapters.map((c: Chapter) => c.content).join('\n\n');
 
     const charactersWithDetails = [];
@@ -1243,36 +1247,32 @@ export const generateStoryIdeas = async (genre: string): Promise<{ themes: strin
     
     Gênero: "${genre}"
 
-    Retorne o resultado em um objeto JSON.
+    Retorne o resultado EXATAMENTE neste formato JSON:
+    {
+      "themes": ["tema1", "tema2", "tema3", "tema4"],
+      "startingPoints": ["ponto1", "ponto2", "ponto3", "ponto4"]
+    }
+    
+    Importante: 
+    - themes deve conter 3 a 4 temas principais cativantes para uma história neste gênero
+    - startingPoints deve conter 3 a 4 pontos de partida ou ideias de cena de abertura
+    - Retorne APENAS o JSON, sem explicações adicionais
   `;
-  
-  const schema = {
-      type: Type.OBJECT,
-      properties: {
-        themes: { 
-            type: Type.ARRAY, 
-            description: "Uma lista de 3 a 4 temas principais cativantes para uma história neste gênero.",
-            items: { type: Type.STRING }
-        },
-        startingPoints: {
-            type: Type.ARRAY,
-            description: "Uma lista de 3 a 4 pontos de partida ou ideias de cena de abertura para uma história neste gênero.",
-            items: { type: Type.STRING }
-        }
-      },
-      required: ["themes", "startingPoints"]
-  };
 
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_FLASH_MODEL,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: schema,
-      },
-    });
-    return JSON.parse(response.text);
+    const response = await callAI(prompt, { genre }, GEMINI_FLASH_MODEL);
+    
+    // Se response já é um objeto, retorna direto
+    if (typeof response === 'object' && response.themes && response.startingPoints) {
+      return response;
+    }
+    
+    // Caso contrário, tenta fazer o parse
+    if (typeof response === 'string') {
+      return JSON.parse(response);
+    }
+    
+    throw new Error('Formato de resposta inválido');
   } catch (error) {
     console.error("Error generating story ideas:", error);
     throw new Error("Falha ao gerar ideias. Tente novamente.");

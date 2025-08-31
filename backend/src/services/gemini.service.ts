@@ -376,7 +376,7 @@ export class GeminiService {
   /**
    * General chat
    */
-  async chat(prompt: string, context?: any, model: string = 'gemini-flash') {
+  async chat(prompt: string, context?: any, _model: string = 'gemini-flash') {
     this.ensureInitialized();
     try {
       const fullPrompt = context 
