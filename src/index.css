@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #121212;
+  font-family: 'Inter', sans-serif;
+}
+
+/* Custom text selection style for better visibility in dark theme */
+::selection {
+  background-color: #8a4fff;
+  color: #ffffff;
+}
+
+/* Custom animations */
+@keyframes fadeIn {
+  0% { opacity: 0; transform: translateY(10px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeInUp {
+  0% { opacity: 0; transform: translateY(20px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes zoomIn {
+  0% { opacity: 0; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes animated-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes typing {
+  from { width: 0; }
+  to { width: 100%; }
+}
+
+@keyframes blink-caret {
+  from, to { border-color: transparent; }
+  50% { border-color: #8a4fff; }
+}
+
+/* Animation classes */
+.animate-fadeIn { animation: fadeIn 0.5s ease-in-out; }
+.animate-fadeInUp { animation: fadeInUp 0.5s ease-out; }
+.animate-zoomIn { animation: zoomIn 0.3s ease-out; }
+.animate-animated-gradient { animation: animated-gradient 8s linear infinite; }
+.animate-typing { animation: typing 2.5s steps(30, end), blink-caret .75s step-end infinite; }
+
+/* Custom colors */
+.bg-brand-background { background-color: #121212; }
+.bg-brand-surface { background-color: #1e1e1e; }
+.bg-brand-secondary { background-color: #3c3c3c; }
+.bg-brand-primary { background-color: #8a4fff; }
+.text-brand-text-primary { color: #e0e0e0; }
+.text-brand-text-secondary { color: #a0a0a0; }
+
+/* Custom fonts */
+.font-sans { font-family: 'Inter', sans-serif; }
+.font-serif { font-family: 'Lora', serif; }

@@ -5,11 +5,28 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory, StoryContent, Relationship, PlotCard, PacingPoint, CharacterVoiceDeviation, ShowDontTellSuggestion, BlogPost } from '../types';
 
-if (!process.env.API_KEY) {
-  throw new Error("API_KEY environment variable not set");
-}
+// Get API key from environment or use a fallback for development
+const getApiKey = () => {
+  // Check if we're in a browser environment
+  if (typeof window !== 'undefined') {
+    // In browser, we'll use the backend API instead of direct Gemini calls
+    return null;
+  }
+  
+  // In Node.js environment (backend)
+  return process.env.GEMINI_API_KEY || process.env.API_KEY;
+};
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize AI only if we have an API key (for backend usage)
+let ai: GoogleGenAI | null = null;
+try {
+  const apiKey = getApiKey();
+  if (apiKey) {
+    ai = new GoogleGenAI({ apiKey });
+  }
+} catch (error) {
+  console.warn('Gemini API not initialized - will use backend API instead');
+}
 
 const GEMINI_FLASH_MODEL = 'gemini-2.5-flash';
 const IMAGEN_MODEL = 'imagen-4.0-generate-001';
@@ -18,6 +35,28 @@ const IMAGEN_MODEL = 'imagen-4.0-generate-001';
 const stripHtml = (html: string) => {
     const doc = new DOMParser().parseFromString(html, 'text/html');
     return doc.body.textContent || "";
+};
+
+// Helper function to call backend API
+const callBackendAPI = async (endpoint: string, data: any) => {
+  try {
+    const response = await fetch(`/api/${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Backend API error: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Backend API call failed for ${endpoint}:`, error);
+    throw new Error(`Falha na comunicação com o servidor. Tente novamente.`);
+  }
 };
 
 export const generateCharacterDialogue = async (story: Story, character: Character, recentContext: string): Promise<string> => {
@@ -48,11 +87,23 @@ export const generateCharacterDialogue = async (story: Story, character: Charact
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-        });
-        return response.text.trim();
+        // If we have direct AI access, use it
+        if (ai) {
+            const response = await ai.models.generateContent({
+                model: GEMINI_FLASH_MODEL,
+                contents: prompt,
+            });
+            return response.text.trim();
+        } else {
+            // Otherwise, use backend API
+            const result = await callBackendAPI('generate-dialogue', {
+                story,
+                character,
+                recentContext,
+                prompt
+            });
+            return result.text || result.dialogue || 'Falha ao gerar diálogo';
+        }
     } catch (error) {
         console.error("Error generating character dialogue:", error);
         throw new Error("Falha ao gerar o diálogo. Tente novamente.");
