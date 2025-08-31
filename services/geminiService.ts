@@ -2,14 +2,12 @@
 
 
 
-import { GoogleGenAI, Type } from "@google/genai";
 import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory, StoryContent, Relationship, PlotCard, PacingPoint, CharacterVoiceDeviation, ShowDontTellSuggestion, BlogPost } from '../types';
+import ApiService from './api.service';
 
-if (!process.env.API_KEY) {
-  throw new Error("API_KEY environment variable not set");
-}
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// API calls are now handled by the backend
+// No need for API_KEY in frontend
+const apiService = new ApiService();
 
 const GEMINI_FLASH_MODEL = 'gemini-2.5-flash';
 const IMAGEN_MODEL = 'imagen-4.0-generate-001';
@@ -18,6 +16,32 @@ const IMAGEN_MODEL = 'imagen-4.0-generate-001';
 const stripHtml = (html: string) => {
     const doc = new DOMParser().parseFromString(html, 'text/html');
     return doc.body.textContent || "";
+};
+
+// Helper to make AI calls through the backend
+const callAI = async (prompt: string, model: string = GEMINI_FLASH_MODEL) => {
+    try {
+        const response = await apiService.chat(prompt, undefined, model);
+        // Handle different response formats from the backend
+        if (typeof response === 'string') {
+            return response;
+        }
+        return response.data?.text || response.text || JSON.stringify(response);
+    } catch (error) {
+        console.error('Error calling AI service:', error);
+        throw error;
+    }
+};
+
+// Helper to generate images through the backend
+const generateImage = async (prompt: string, style: string = 'creative') => {
+    try {
+        const response = await apiService.generateCover(prompt, style);
+        return response.data?.imageUrl || response.imageUrl || response;
+    } catch (error) {
+        console.error('Error generating image:', error);
+        throw error;
+    }
 };
 
 export const generateCharacterDialogue = async (story: Story, character: Character, recentContext: string): Promise<string> => {
@@ -48,11 +72,8 @@ export const generateCharacterDialogue = async (story: Story, character: Charact
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-        });
-        return response.text.trim();
+        const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+        return response.trim();
     } catch (error) {
         console.error("Error generating character dialogue:", error);
         throw new Error("Falha ao gerar o diálogo. Tente novamente.");
@@ -63,22 +84,8 @@ export const generateCharacterDialogue = async (story: Story, character: Charact
 export const generateBookCover = async (prompt: string, style: string): Promise<string> => {
     const fullPrompt = `Capa de livro, estilo de ${style}. A imagem deve ser puramente artística, SEM NENHUM TEXTO, letras, palavras, títulos ou nomes de autor. Foco total na arte visual evocativa e profissional. Prompt do usuário: "${prompt}"`;
     try {
-        const response = await ai.models.generateImages({
-            model: IMAGEN_MODEL,
-            prompt: fullPrompt,
-            config: {
-                numberOfImages: 1,
-                outputMimeType: 'image/jpeg',
-                aspectRatio: '3:4',
-            },
-        });
-
-        if (response?.generatedImages?.length > 0 && response.generatedImages[0].image?.imageBytes) {
-            const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
-            return `data:image/jpeg;base64,${base64ImageBytes}`;
-        } else {
-            throw new Error("A API não retornou uma imagem válida.");
-        }
+        const imageUrl = await generateImage(fullPrompt, style);
+        return imageUrl;
     } catch (error) {
         console.error("Error generating book cover:", error);
         throw new Error("Falha ao gerar a capa do livro. Tente novamente.");
@@ -102,11 +109,8 @@ export const formatTextWithAI = async (text: string): Promise<string> => {
         ---
     `;
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-        });
-        return response.text.trim();
+        const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+        return response.trim();
     } catch (error) {
         console.error("Error formatting text with AI:", error);
         throw new Error("Falha ao formatar o texto. Tente novamente.");
@@ -125,11 +129,8 @@ export const extractCharacterAppearance = async (fullText: string, characterName
     ---
   `;
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_FLASH_MODEL,
-      contents: prompt,
-    });
-    return response.text.trim();
+    const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+    return response.trim();
   } catch (error) {
     console.error(`Error extracting appearance for ${characterName}:`, error);
     return "Nenhuma descrição física específica encontrada.";
@@ -147,22 +148,8 @@ export const generateCharacterAvatar = async (appearance: string, genre: string,
   `;
 
   try {
-    const response = await ai.models.generateImages({
-      model: IMAGEN_MODEL,
-      prompt: prompt,
-      config: {
-        numberOfImages: 1,
-        outputMimeType: 'image/jpeg',
-        aspectRatio: '1:1',
-      },
-    });
-
-    if (response?.generatedImages?.length > 0 && response.generatedImages[0].image?.imageBytes) {
-        const base64ImageBytes: string = response.generatedImages[0].image.imageBytes;
-        return { success: true, url: `data:image/jpeg;base64,${base64ImageBytes}` };
-    } else {
-        throw new Error("A API não retornou uma imagem válida.");
-    }
+    const imageUrl = await generateImage(prompt, style);
+    return { success: true, url: imageUrl };
   } catch (error: any) {
     console.error("Error generating character avatar:", error);
     let errorMessage = "Falha ao gerar o avatar. Usando uma imagem de fallback.";
@@ -240,16 +227,8 @@ export const generateStoryStructure = async (genre: string, theme: string, userP
   };
 
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_FLASH_MODEL,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: generationSchema,
-      },
-    });
-
-    const storyData = JSON.parse(response.text);
+    const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+    const storyData = JSON.parse(response);
     const fullText = storyData.chapters.map((c: Chapter) => c.content).join('\n\n');
 
     const charactersWithDetails = [];
@@ -309,11 +288,8 @@ ${stripHtml(context)}
 ---
 `;
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_FLASH_MODEL,
-      contents: prompt,
-    });
-    return response.text;
+    const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+    return response;
   } catch (error) {
     console.error("Error continuing writing:", error);
     throw new Error("Falha ao continuar a escrita. Tente novamente.");
@@ -336,11 +312,8 @@ ${text}
 Retorne apenas o texto modificado, sem comentários ou formatação extra.`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_FLASH_MODEL,
-      contents: prompt,
-    });
-    return response.text.trim();
+    const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+    return response.trim();
   } catch (error) {
     console.error("Error modifying text:", error);
     throw new Error("Falha ao modificar o texto. Tente novamente.");
@@ -370,15 +343,8 @@ ${stripHtml(chapterContent)}
 ---
 `;
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_FLASH_MODEL,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: feedbackSchema,
-      },
-    });
-    return JSON.parse(response.text);
+    const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+    return JSON.parse(response);
   } catch (error) {
     console.error("Error getting beta reader feedback:", error);
     throw new Error("Falha ao obter feedback. Tente novamente.");
@@ -422,15 +388,8 @@ export const analyzeScriptContinuity = async (story: Story): Promise<ScriptIssue
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: scriptAnalysisSchema,
-            },
-        });
-        return JSON.parse(response.text);
+        const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+        return JSON.parse(response);
     } catch (error) {
         console.error("Error analyzing script continuity:", error);
         throw new Error("Falha ao analisar o roteiro. Tente novamente.");
@@ -462,15 +421,8 @@ export const checkGrammar = async (text: string): Promise<GrammarSuggestion[]> =
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: grammarSchema,
-            },
-        });
-        return JSON.parse(response.text);
+        const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+        return JSON.parse(response);
     } catch (error) {
         console.error("Error checking grammar:", error);
         throw new Error("Falha ao verificar a gramática. Tente novamente.");
@@ -504,16 +456,9 @@ export const analyzeRepetitions = async (story: Story): Promise<RepetitionIssue[
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: repetitionSchema,
-            },
-        });
+        const response = await callAI(prompt, GEMINI_FLASH_MODEL);
 
-        const textResponse = response.text;
+        const textResponse = response;
         if (!textResponse) {
             console.warn("AI returned an empty response for repetition analysis. Assuming no issues found.");
             return [];
@@ -569,14 +514,7 @@ export const importStoryFromText = async (textContent: string, authorId: string)
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_FLASH_MODEL,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: importedStorySchema,
-      },
-    });
+    const response = await callAI(prompt, GEMINI_FLASH_MODEL);
 
     let jsonString = response.text.trim();
     const storyData = JSON.parse(jsonString);
@@ -739,16 +677,9 @@ export const chatWithAgent = async (story: Story, conversation: Message[], newMe
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: agentResponseSchema,
-            },
-        });
+        const response = await callAI(prompt, GEMINI_FLASH_MODEL);
 
-        const result = JSON.parse(response.text);
+        const result = JSON.parse(response);
         
         if (result.updatedStory) {
             // Re-integrate the full story data that was summarized
@@ -787,11 +718,8 @@ export const generateInspiration = async (type: 'what-if' | 'plot-twist' | 'name
   }
   
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_FLASH_MODEL,
-      contents: prompt,
-    });
-    return response.text.trim();
+    const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+    return response.trim();
   } catch (error) {
     console.error("Error generating inspiration:", error);
     throw new Error("Falha ao gerar inspiração. Tente novamente.");
@@ -826,15 +754,8 @@ export const analyzeTextForWorldEntries = async (text: string): Promise<Omit<Wor
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: worldEntrySchemaForAnalysis,
-            },
-        });
-        const results = JSON.parse(response.text);
+        const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+        const results = JSON.parse(response);
         // Ensure category is valid
         return results.filter((r: any) => ['Personagem', 'Lugar', 'Item', 'Organização', 'Evento'].includes(r.category));
     } catch (error) {
@@ -882,15 +803,8 @@ export const suggestCharacterRelationships = async (story: Story, characterId: s
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: relationshipsSchema,
-            },
-        });
-        const results = JSON.parse(response.text);
+        const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+        const results = JSON.parse(response);
         // Validate that the returned character IDs exist
         const validCharacterIds = new Set(otherCharacters.map(c => c.id));
         return results.filter((r: Relationship) => validCharacterIds.has(r.characterId));
@@ -939,15 +853,8 @@ export const suggestPlotPointsFromSummaries = async (story: Story): Promise<Omit
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: plotPointsSchema,
-            },
-        });
-        const results = JSON.parse(response.text);
+        const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+        const results = JSON.parse(response);
 
         const characterNameToIdMap = new Map(story.characters.map(c => [c.name.toLowerCase(), c.id]));
 
@@ -1007,15 +914,8 @@ ${stripHtml(c.content).substring(0, 8000)}
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: pacingAnalysisSchema,
-            },
-        });
-        const results = JSON.parse(response.text) as PacingPoint[];
+        const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+        const results = JSON.parse(response) as PacingPoint[];
         // Validate that chapterIds match
         const validChapterIds = new Set(story.chapters.map(c => c.id));
         return results.filter(r => validChapterIds.has(r.chapterId));
@@ -1062,15 +962,8 @@ export const analyzeCharacterVoice = async (story: Story, character: Character):
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: characterVoiceDeviationSchema,
-            },
-        });
-        const results = JSON.parse(response.text);
+        const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+        const results = JSON.parse(response);
         const validChapterIds = new Set(story.chapters.map(c => c.id));
         return results.filter((r: CharacterVoiceDeviation) => validChapterIds.has(r.chapterId));
     } catch (error) {
@@ -1103,11 +996,8 @@ export const chatWithCharacter = async (story: Story, character: Character, conv
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-        });
-        return response.text.trim();
+        const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+        return response.trim();
     } catch (error) {
         console.error("Error with character chat:", error);
         throw new Error("O personagem parece estar perdido em pensamentos. Tente novamente.");
@@ -1146,15 +1036,8 @@ export const analyzeShowDontTell = async (text: string): Promise<ShowDontTellSug
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: showDontTellSchema,
-            },
-        });
-        return JSON.parse(response.text);
+        const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+        return JSON.parse(response);
     } catch (error) {
         console.error("Error analyzing for 'Show, Don't Tell':", error);
         throw new Error("Falha ao analisar o texto em busca de oportunidades de 'Mostrar, não contar'. Tente novamente.");
@@ -1183,15 +1066,8 @@ export const checkLoreConsistency = async (sentence: string, entityName: string,
     `;
     
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: loreConsistencySchema,
-            },
-        });
-        const result = JSON.parse(response.text);
+        const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+        const result = JSON.parse(response);
         return {
             isContradictory: result.isContradictory,
             explanation: result.explanation || null
@@ -1222,15 +1098,8 @@ export const generateLandingPageIdea = async (prompt: string): Promise<{ title: 
   };
 
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_FLASH_MODEL,
-      contents: generationPrompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: schema,
-      },
-    });
-    return JSON.parse(response.text);
+    const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+    return JSON.parse(response);
   } catch (error) {
     console.error("Error generating landing page idea:", error);
     throw new Error("Falha ao gerar a ideia. Tente novamente.");
@@ -1264,15 +1133,8 @@ export const generateStoryIdeas = async (genre: string): Promise<{ themes: strin
   };
 
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_FLASH_MODEL,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: schema,
-      },
-    });
-    return JSON.parse(response.text);
+    const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+    return JSON.parse(response);
   } catch (error) {
     console.error("Error generating story ideas:", error);
     throw new Error("Falha ao gerar ideias. Tente novamente.");
@@ -1293,11 +1155,8 @@ export const generateWeeklyChallengePrompt = async (): Promise<string> => {
     Retorne APENAS o texto do prompt.
   `;
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_FLASH_MODEL,
-      contents: prompt,
-    });
-    return response.text.trim();
+    const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+    return response.trim();
   } catch (error) {
     console.error("Error generating weekly challenge:", error);
     throw new Error("Falha ao gerar o desafio da semana. Tente novamente.");
@@ -1326,11 +1185,8 @@ export const getAIFollowUp = async (articleContent: string, question: string): P
         - Retorne apenas o texto da sua resposta.
     `;
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-        });
-        return response.text.trim();
+        const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+        return response.trim();
     } catch (error) {
         console.error("Error getting AI follow-up:", error);
         throw new Error("O Mentor de IA está ocupado no momento. Tente novamente em alguns instantes.");
@@ -1354,15 +1210,8 @@ export const generateShowDontTellAlternatives = async (tellingSentence: string):
         Resultado: ["Seu coração martelava contra as costelas como um tambor de guerra.", "Ele recuou, com os olhos arregalados, um suor frio brotando em sua testa.", "Cada sombra no canto da sala parecia se contorcer, e ele não conseguia parar de tremer."]
     `;
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: showDontTellAlternativesSchema,
-            },
-        });
-        return JSON.parse(response.text);
+        const response = await callAI(prompt, GEMINI_FLASH_MODEL);
+        return JSON.parse(response);
     } catch (error) {
         console.error("Error generating 'Show, Don't Tell' alternatives:", error);
         throw new Error("Falha ao gerar alternativas. Tente novamente.");
