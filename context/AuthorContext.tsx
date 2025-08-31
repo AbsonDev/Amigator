@@ -1,16 +1,15 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import type { Author } from '../types';
-import useLocalStorage from '../hooks/useLocalStorage';
+import { apiService } from '../services/api.service';
 
 interface AuthorContextType {
   author: Author | null;
-  users: Author[];
-  setAuthor: React.Dispatch<React.SetStateAction<Author | null>>;
-  // FIX: Expose setUsers to allow components to update the global users list.
-  setUsers: React.Dispatch<React.SetStateAction<Author[]>>;
+  isLoading: boolean;
+  error: string | null;
   signUp: (name: string, email: string, password: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  updateProfile: (updates: Partial<Author>) => Promise<void>;
   showPostTrialModal: boolean;
   closePostTrialModal: () => void;
 }
@@ -18,118 +17,130 @@ interface AuthorContextType {
 const AuthorContext = createContext<AuthorContextType | undefined>(undefined);
 
 export const AuthorProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [users, setUsers] = useLocalStorage<Author[]>('ia-writer-users', []);
-  const [author, setAuthor] = useLocalStorage<Author | null>('ia-writer-current-user', null);
+  const [author, setAuthor] = useState<Author | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showPostTrialModal, setShowPostTrialModal] = useState(false);
-  
+
+  // Check for existing session on mount
   useEffect(() => {
-    // Migrate all users data structure
-    if (users.length > 0) {
-        const needsMigration = users.some(u => u.bio === undefined || u.isProfilePublic === undefined);
-        if (needsMigration) {
-            setUsers(currentUsers =>
-                currentUsers.map(user => ({
-                    ...user,
-                    bio: user.bio || '',
-                    isProfilePublic: user.isProfilePublic || false,
-                }))
-            );
-        }
-    }
-
-    if (author) {
-      let needsUpdate = false;
-      const updatedAuthor = { ...author };
-
-      if (author.subscription.tier === 'Amador' && author.subscription.trialEnds) {
-        const trialEndDate = new Date(author.subscription.trialEnds);
-        const now = new Date();
-        if (trialEndDate < now) {
-          updatedAuthor.subscription = { tier: 'Free' };
-          const hasSeenModal = localStorage.getItem(`post-trial-modal-shown-${author.id}`) === 'true';
-          if (!hasSeenModal) {
-            setShowPostTrialModal(true);
-            localStorage.setItem(`post-trial-modal-shown-${author.id}`, 'true');
+    const checkAuth = async () => {
+      try {
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+          apiService.setToken(token);
+          const profile = await apiService.getProfile();
+          setAuthor(profile);
+          
+          // Check trial status
+          if (profile.subscription?.tier === 'Amador' && profile.subscription?.trialEnds) {
+            const trialEndDate = new Date(profile.subscription.trialEnds);
+            const now = new Date();
+            if (trialEndDate < now) {
+              const hasSeenModal = localStorage.getItem(`post-trial-modal-shown-${profile.id}`) === 'true';
+              if (!hasSeenModal) {
+                setShowPostTrialModal(true);
+                localStorage.setItem(`post-trial-modal-shown-${profile.id}`, 'true');
+              }
+            }
           }
-          needsUpdate = true;
         }
+      } catch (err) {
+        console.error('Auth check failed:', err);
+        apiService.clearToken();
+      } finally {
+        setIsLoading(false);
       }
-
-      if (!author.monthlyUsage) {
-        updatedAuthor.monthlyUsage = {};
-        needsUpdate = true;
-      }
-      
-      if (author.feedbackCredits === undefined) {
-        updatedAuthor.feedbackCredits = 0;
-        needsUpdate = true;
-      }
-      
-      if (author.bio === undefined) {
-        updatedAuthor.bio = '';
-        needsUpdate = true;
-      }
-
-      if (author.isProfilePublic === undefined) {
-        updatedAuthor.isProfilePublic = false;
-        needsUpdate = true;
-      }
-
-      if (needsUpdate) {
-        setAuthor(updatedAuthor);
-        // Also update the user in the main list
-        setUsers(prevUsers => prevUsers.map(u => u.id === updatedAuthor.id ? updatedAuthor : u));
-      }
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [author?.id]);
-
-  const signUp = useCallback(async (name: string, email: string, password: string) => {
-    const existingUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (existingUser) {
-      throw new Error("Um usuário com este e-mail já existe.");
-    }
-
-    const trialEndDate = new Date();
-    trialEndDate.setDate(trialEndDate.getDate() + 7);
-
-    const newUser: Author = {
-      id: `author-${Date.now()}`,
-      name,
-      email,
-      password, // Note: In a real app, hash this password!
-      subscription: {
-        tier: 'Amador',
-        trialEnds: trialEndDate.toISOString(),
-      },
-      monthlyUsage: {},
-      feedbackCredits: 1, // Start with one credit to encourage participation
-      bio: '',
-      isProfilePublic: false,
     };
 
-    setUsers(prev => [...prev, newUser]);
-    setAuthor(newUser);
-  }, [users, setUsers, setAuthor]);
+    checkAuth();
+  }, []);
+
+  const signUp = useCallback(async (name: string, email: string, password: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await apiService.signup(name, email, password);
+      setAuthor(response.user);
+    } catch (err: any) {
+      const errorMessage = err.message || 'Signup failed';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
-    if (!user || user.password !== password) {
-      throw new Error("E-mail ou senha inválidos.");
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await apiService.login(email, password);
+      setAuthor(response.user);
+      
+      // Check trial status after login
+      if (response.user.subscription?.tier === 'Amador' && response.user.subscription?.trialEnds) {
+        const trialEndDate = new Date(response.user.subscription.trialEnds);
+        const now = new Date();
+        if (trialEndDate < now) {
+          const hasSeenModal = localStorage.getItem(`post-trial-modal-shown-${response.user.id}`) === 'true';
+          if (!hasSeenModal) {
+            setShowPostTrialModal(true);
+            localStorage.setItem(`post-trial-modal-shown-${response.user.id}`, 'true');
+          }
+        }
+      }
+    } catch (err: any) {
+      const errorMessage = err.message || 'Login failed';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    } finally {
+      setIsLoading(false);
     }
-    setAuthor(user);
-  }, [users, setAuthor]);
+  }, []);
 
-  const logout = useCallback(() => {
-    setAuthor(null);
-  }, [setAuthor]);
+  const logout = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      await apiService.logout();
+      setAuthor(null);
+    } catch (err) {
+      console.error('Logout error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
+  const updateProfile = useCallback(async (updates: Partial<Author>) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const updatedUser = await apiService.updateProfile(updates);
+      setAuthor(updatedUser);
+    } catch (err: any) {
+      const errorMessage = err.message || 'Update failed';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
   const closePostTrialModal = () => {
     setShowPostTrialModal(false);
   };
   
-  const value = { author, users, setAuthor, setUsers, signUp, login, logout, showPostTrialModal, closePostTrialModal };
+  const value = { 
+    author, 
+    isLoading, 
+    error,
+    signUp, 
+    login, 
+    logout,
+    updateProfile,
+    showPostTrialModal, 
+    closePostTrialModal 
+  };
 
   return <AuthorContext.Provider value={value}>{children}</AuthorContext.Provider>;
 };
