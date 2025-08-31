@@ -122,7 +122,6 @@ export class AIController {
    */
   generateDialogue = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const userId = req.user?.id;
       const { story, character, recentContext } = req.body;
 
       // Generate dialogue
@@ -175,7 +174,6 @@ export class AIController {
    */
   analyzeStory = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-      const userId = req.user?.id;
       const { story, analysisType } = req.body;
 
       // Perform analysis based on type

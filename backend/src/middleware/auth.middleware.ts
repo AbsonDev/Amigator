@@ -13,7 +13,7 @@ export const authenticate = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction
-) => {
+): Promise<Response | void> => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
 
@@ -38,7 +38,7 @@ export const authenticate = async (
  * Middleware to check subscription tier
  */
 export const requireSubscription = (allowedTiers: string[]) => {
-  return (req: AuthRequest, res: Response, next: NextFunction) => {
+  return (req: AuthRequest, res: Response, next: NextFunction): Response | void => {
     if (!req.user) {
       return res.status(401).json({ 
         error: 'Authentication required' 
