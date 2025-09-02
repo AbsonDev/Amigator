@@ -214,39 +214,39 @@ export const generateStoryStructure = async (genre: string, theme: string, userP
   `;
   
   const generationSchema = {
-      type: Type.OBJECT,
+      type: "object",
       properties: {
         title: {
-          type: Type.STRING,
+          type: "string",
           description: "Um título criativo e cativante para a história."
         },
         synopsis: {
-          type: Type.STRING,
+          type: "string",
           description: "Uma sinopse curta (2-3 frases) da história."
         },
         characters: {
-          type: Type.ARRAY,
+          type: "array",
           description: "Uma lista de 3 a 5 personagens principais.",
           items: {
-            type: Type.OBJECT,
+            type: "object",
             properties: {
-              name: { type: Type.STRING, description: "Nome completo do personagem." },
-              description: { type: Type.STRING, description: "Uma breve descrição da personalidade e motivações do personagem. NÃO inclua aparência física aqui." },
-              role: { type: Type.STRING, description: "O papel do personagem na história (ex: Protagonista, Antagonista, Mentor, Alívio Cômico)." },
+              name: { type: "string", description: "Nome completo do personagem." },
+              description: { type: "string", description: "Uma breve descrição da personalidade e motivações do personagem. NÃO inclua aparência física aqui." },
+              role: { type: "string", description: "O papel do personagem na história (ex: Protagonista, Antagonista, Mentor, Alívio Cômico)." },
             },
             required: ["name", "description", "role"],
             propertyOrdering: ["name", "description", "role"]
           }
         },
         chapters: {
-          type: Type.ARRAY,
+          type: "array",
           description: "Uma lista de 5 a 10 capítulos iniciais que estruturam a história.",
           items: {
-            type: Type.OBJECT,
+            type: "object",
             properties: {
-              title: { type: Type.STRING, description: "O título do capítulo." },
-              summary: { type: Type.STRING, description: "Um resumo de uma frase dos principais eventos do capítulo." },
-              content: { type: Type.STRING, description: "O conteúdo completo do capítulo inicial, que deve introduzir os personagens e a trama."}
+              title: { type: "string", description: "O título do capítulo." },
+              summary: { type: "string", description: "Um resumo de uma frase dos principais eventos do capítulo." },
+              content: { type: "string", description: "O conteúdo completo do capítulo inicial, que deve introduzir os personagens e a trama."}
             },
             required: ["title", "summary", "content"],
             propertyOrdering: ["title", "summary", "content"]
@@ -360,13 +360,13 @@ Retorne apenas o texto modificado, sem comentários ou formatação extra.`;
 
 
 const feedbackSchema = {
-  type: Type.OBJECT,
+  type: "object",
   properties: {
-    overallImpression: { type: Type.STRING, description: 'Feedback geral sobre o capítulo (1-2 frases).' },
-    pacing: { type: Type.STRING, description: 'Comentários sobre o ritmo e o fluxo do capítulo.' },
-    dialogue: { type: Type.STRING, description: 'Feedback sobre os diálogos dos personagens, se houver.' },
-    characterConsistency: { type: Type.STRING, description: 'Análise da consistência da voz e das ações dos personagens.' },
-    suggestionsForImprovement: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Uma lista de 2-3 sugestões acionáveis para melhoria.' }
+    overallImpression: { type: "string", description: 'Feedback geral sobre o capítulo (1-2 frases).' },
+    pacing: { type: "string", description: 'Comentários sobre o ritmo e o fluxo do capítulo.' },
+    dialogue: { type: "string", description: 'Feedback sobre os diálogos dos personagens, se houver.' },
+    characterConsistency: { type: "string", description: 'Análise da consistência da voz e das ações dos personagens.' },
+    suggestionsForImprovement: { type: "array", items: { type: "string" }, description: 'Uma lista de 2-3 sugestões acionáveis para melhoria.' }
   },
   required: ["overallImpression", "pacing", "dialogue", "characterConsistency", "suggestionsForImprovement"]
 };
@@ -449,13 +449,13 @@ export const analyzeScriptContinuity = async (story: Story): Promise<ScriptIssue
 };
 
 const grammarSchema = {
-    type: Type.ARRAY,
+    type: "array",
     items: {
-        type: Type.OBJECT,
+        type: "object",
         properties: {
-            originalText: { type: Type.STRING, description: 'O trecho exato de texto com o erro.' },
-            suggestedText: { type: Type.STRING, description: 'A versão corrigida e sugerida do texto.' },
-            explanation: { type: Type.STRING, description: 'Uma breve explicação do erro gramatical ou de estilo.' }
+            originalText: { type: "string", description: 'O trecho exato de texto com o erro.' },
+            suggestedText: { type: "string", description: 'A versão corrigida e sugerida do texto.' },
+            explanation: { type: "string", description: 'Uma breve explicação do erro gramatical ou de estilo.' }
         },
         required: ["originalText", "suggestedText", "explanation"]
     }
@@ -489,13 +489,13 @@ export const checkGrammar = async (text: string): Promise<GrammarSuggestion[]> =
 };
 
 const repetitionSchema = {
-    type: Type.ARRAY,
+    type: "array",
     items: {
-        type: Type.OBJECT,
+        type: "object",
         properties: {
-            text: { type: Type.STRING, description: 'A palavra ou frase repetida.' },
-            count: { type: Type.NUMBER, description: 'O número de vezes que o texto foi repetido.' },
-            locations: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Uma lista dos títulos dos capítulos onde a repetição ocorre.' }
+            text: { type: "string", description: 'A palavra ou frase repetida.' },
+            count: { type: "number", description: 'O número de vezes que o texto foi repetido.' },
+            locations: { type: "array", items: { type: "string" }, description: 'Uma lista dos títulos dos capítulos onde a repetição ocorre.' }
         },
         required: ["text", "count", "locations"]
     }
@@ -541,20 +541,20 @@ export const analyzeRepetitions = async (story: Story): Promise<RepetitionIssue[
 // FIX: Added authorId parameter to satisfy the Story type contract on return.
 export const importStoryFromText = async (textContent: string, authorId: string): Promise<Story> => {
   const importedStorySchema = {
-    type: Type.OBJECT,
+    type: "object",
     properties: {
-        title: { type: Type.STRING, description: "O título do livro, extraído do texto. Se não houver um explícito, crie um." },
-        synopsis: { type: Type.STRING, description: "Uma sinopse curta (2-3 frases) gerada com base no conteúdo geral do texto." },
-        genre: { type: Type.STRING, description: "O gênero principal do livro (ex: Fantasia, Ficção Científica, Mistério), inferido do texto." },
+        title: { type: "string", description: "O título do livro, extraído do texto. Se não houver um explícito, crie um." },
+        synopsis: { type: "string", description: "Uma sinopse curta (2-3 frases) gerada com base no conteúdo geral do texto." },
+        genre: { type: "string", description: "O gênero principal do livro (ex: Fantasia, Ficção Científica, Mistério), inferido do texto." },
         characters: {
-            type: Type.ARRAY,
+            type: "array",
             description: "Uma lista dos 3-5 personagens principais identificados no texto.",
             items: {
-                type: Type.OBJECT,
+                type: "object",
                 properties: {
-                    name: { type: Type.STRING, description: "Nome completo do personagem." },
-                    description: { type: Type.STRING, description: "Uma breve descrição da personalidade e motivações do personagem com base em suas ações e diálogos no texto." },
-                    role: { type: Type.STRING, description: "O papel do personagem na história (ex: Protagonista, Antagonista)." }
+                    name: { type: "string", description: "Nome completo do personagem." },
+                    description: { type: "string", description: "Uma breve descrição da personalidade e motivações do personagem com base em suas ações e diálogos no texto." },
+                    role: { type: "string", description: "O papel do personagem na história (ex: Protagonista, Antagonista)." }
                 },
                 required: ["name", "description", "role"]
             }
@@ -654,40 +654,40 @@ const summarizedStoryForAgent = (story: Story): Partial<Story> => {
 };
 
 const agentResponseSchema = {
-    type: Type.OBJECT,
+    type: "object",
     properties: {
         conversationalResponse: {
-            type: Type.STRING,
+            type: "string",
             description: "Sua resposta amigável e conversacional para o usuário. Use formatação Markdown e emojis para clareza."
         },
         updatedStory: {
-            type: Type.OBJECT,
+            type: "object",
             nullable: true,
             description: "O objeto da história completo e atualizado se uma edição foi realizada. Caso contrário, nulo.",
             properties: {
-                title: { type: Type.STRING },
-                genre: { type: Type.STRING },
-                synopsis: { type: Type.STRING },
+                title: { type: "string" },
+                genre: { type: "string" },
+                synopsis: { type: "string" },
                 characters: {
-                    type: Type.ARRAY,
+                    type: "array",
                     items: {
-                        type: Type.OBJECT,
+                        type: "object",
                         properties: {
-                            id: { type: Type.STRING },
-                            name: { type: Type.STRING },
-                            description: { type: Type.STRING },
-                            appearance: { type: Type.STRING },
-                            role: { type: Type.STRING },
-                            avatarUrl: { type: Type.STRING },
-                            narrativeArc: { type: Type.STRING },
+                            id: { type: "string" },
+                            name: { type: "string" },
+                            description: { type: "string" },
+                            appearance: { type: "string" },
+                            role: { type: "string" },
+                            avatarUrl: { type: "string" },
+                            narrativeArc: { type: "string" },
                             relationships: {
-                                type: Type.ARRAY,
+                                type: "array",
                                 items: {
-                                    type: Type.OBJECT,
+                                    type: "object",
                                     properties: {
-                                        characterId: { type: Type.STRING },
-                                        type: { type: Type.STRING },
-                                        description: { type: Type.STRING }
+                                        characterId: { type: "string" },
+                                        type: { type: "string" },
+                                        description: { type: "string" }
                                     }
                                 }
                             }
@@ -695,26 +695,26 @@ const agentResponseSchema = {
                     }
                 },
                 chapters: {
-                    type: Type.ARRAY,
+                    type: "array",
                     items: {
-                        type: Type.OBJECT,
+                        type: "object",
                         properties: {
-                            id: { type: Type.STRING },
-                            title: { type: Type.STRING },
-                            summary: { type: Type.STRING },
-                            content: { type: Type.STRING }
+                            id: { type: "string" },
+                            title: { type: "string" },
+                            summary: { type: "string" },
+                            content: { type: "string" }
                         }
                     }
                 },
                 world: {
-                    type: Type.ARRAY,
+                    type: "array",
                     items: {
-                        type: Type.OBJECT,
+                        type: "object",
                         properties: {
-                            id: { type: Type.STRING },
-                            name: { type: Type.STRING },
-                            category: { type: Type.STRING },
-                            description: { type: Type.STRING }
+                            id: { type: "string" },
+                            name: { type: "string" },
+                            category: { type: "string" },
+                            description: { type: "string" }
                         }
                     }
                 }
@@ -811,13 +811,13 @@ export const generateInspiration = async (type: 'what-if' | 'plot-twist' | 'name
 
 
 const worldEntrySchemaForAnalysis = {
-    type: Type.ARRAY,
+    type: "array",
     items: {
-        type: Type.OBJECT,
+        type: "object",
         properties: {
-            name: { type: Type.STRING, description: 'O nome do personagem, lugar, item, etc.' },
-            category: { type: Type.STRING, description: "A categoria: 'Personagem', 'Lugar', 'Item', 'Organização' ou 'Evento'." },
-            description: { type: Type.STRING, description: 'Uma breve descrição de uma frase.' }
+            name: { type: "string", description: 'O nome do personagem, lugar, item, etc.' },
+            category: { type: "string", description: "A categoria: 'Personagem', 'Lugar', 'Item', 'Organização' ou 'Evento'." },
+            description: { type: "string", description: 'Uma breve descrição de uma frase.' }
         },
         required: ["name", "category", "description"]
     }
@@ -855,14 +855,14 @@ export const analyzeTextForWorldEntries = async (text: string): Promise<Omit<Wor
 };
 
 const relationshipsSchema = {
-    type: Type.ARRAY,
+    type: "array",
     description: "Uma lista de relacionamentos sugeridos entre o personagem principal e outros.",
     items: {
-        type: Type.OBJECT,
+        type: "object",
         properties: {
-            characterId: { type: Type.STRING, description: "O ID do outro personagem no relacionamento." },
-            type: { type: Type.STRING, description: "O tipo de relacionamento (ex: Aliado, Inimigo, Parente, Interesse Amoroso, Mentor)." },
-            description: { type: Type.STRING, description: "Uma breve descrição justificando o relacionamento com base no texto." },
+            characterId: { type: "string", description: "O ID do outro personagem no relacionamento." },
+            type: { type: "string", description: "O tipo de relacionamento (ex: Aliado, Inimigo, Parente, Interesse Amoroso, Mentor)." },
+            description: { type: "string", description: "Uma breve descrição justificando o relacionamento com base no texto." },
         },
         required: ["characterId", "type", "description"]
     }
@@ -912,16 +912,16 @@ export const suggestCharacterRelationships = async (story: Story, characterId: s
 };
 
 const plotPointsSchema = {
-    type: Type.ARRAY,
+    type: "array",
     items: {
-        type: Type.OBJECT,
+        type: "object",
         properties: {
-            title: { type: Type.STRING, description: 'Um título curto e descritivo para o ponto da trama (máximo 5 palavras).' },
-            description: { type: Type.STRING, description: 'Uma descrição detalhada do evento ou cena (2-3 frases).' },
-            chapterId: { type: Type.STRING, description: 'O ID do capítulo correspondente.' },
+            title: { type: "string", description: 'Um título curto e descritivo para o ponto da trama (máximo 5 palavras).' },
+            description: { type: "string", description: 'Uma descrição detalhada do evento ou cena (2-3 frases).' },
+            chapterId: { type: "string", description: 'O ID do capítulo correspondente.' },
             characterNames: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
+                type: "array",
+                items: { type: "string" },
                 description: 'Uma lista dos nomes dos personagens principais envolvidos neste ponto da trama.'
             }
         },
@@ -979,14 +979,14 @@ export const suggestPlotPointsFromSummaries = async (story: Story): Promise<Omit
 };
 
 const pacingAnalysisSchema = {
-    type: Type.ARRAY,
+    type: "array",
     items: {
-        type: Type.OBJECT,
+        type: "object",
         properties: {
-          chapterId: { type: Type.STRING, description: 'O ID exato do capítulo fornecido.' },
-          chapterTitle: { type: Type.STRING, description: 'O título exato do capítulo fornecido.' },
-          tensionScore: { type: Type.NUMBER, description: 'Uma pontuação de tensão de 1 (muito baixo, reflexivo) a 10 (muito alto, clímax de ação).' },
-          justification: { type: Type.STRING, description: 'Uma breve justificativa para a pontuação, explicando os fatores considerados.' },
+          chapterId: { type: "string", description: 'O ID exato do capítulo fornecido.' },
+          chapterTitle: { type: "string", description: 'O título exato do capítulo fornecido.' },
+          tensionScore: { type: "number", description: 'Uma pontuação de tensão de 1 (muito baixo, reflexivo) a 10 (muito alto, clímax de ação).' },
+          justification: { type: "string", description: 'Uma breve justificativa para a pontuação, explicando os fatores considerados.' },
         },
         required: ["chapterId", "chapterTitle", "tensionScore", "justification"],
     },
@@ -1037,14 +1037,14 @@ ${stripHtml(c.content).substring(0, 8000)}
 };
 
 const characterVoiceDeviationSchema = {
-    type: Type.ARRAY,
+    type: "array",
     items: {
-        type: Type.OBJECT,
+        type: "object",
         properties: {
-            chapterId: { type: Type.STRING, description: 'O ID do capítulo onde a inconsistência ocorre.' },
-            chapterTitle: { type: Type.STRING, description: 'O título do capítulo onde a inconsistência ocorre.' },
-            dialogueSnippet: { type: Type.STRING, description: 'A fala exata que soa inconsistente.' },
-            explanation: { type: Type.STRING, description: 'Uma breve explicação de por que a fala é inconsistente com a voz do personagem.' }
+            chapterId: { type: "string", description: 'O ID do capítulo onde a inconsistência ocorre.' },
+            chapterTitle: { type: "string", description: 'O título do capítulo onde a inconsistência ocorre.' },
+            dialogueSnippet: { type: "string", description: 'A fala exata que soa inconsistente.' },
+            explanation: { type: "string", description: 'Uma breve explicação de por que a fala é inconsistente com a voz do personagem.' }
         },
         required: ["chapterId", "chapterTitle", "dialogueSnippet", "explanation"]
     }
@@ -1126,17 +1126,17 @@ export const chatWithCharacter = async (story: Story, character: Character, conv
 };
 
 const showDontTellSchema = {
-    type: Type.ARRAY,
+    type: "array",
     items: {
-        type: Type.OBJECT,
+        type: "object",
         properties: {
-            originalText: { type: Type.STRING, description: 'A frase exata do texto original que está "contando" em vez de "mostrando".' },
+            originalText: { type: "string", description: 'A frase exata do texto original que está "contando" em vez de "mostrando".' },
             suggestions: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
+                type: "array",
+                items: { type: "string" },
                 description: 'Uma lista de 2-3 alternativas reescritas que "mostram" a emoção ou estado.'
             },
-            explanation: { type: Type.STRING, description: 'Uma breve explicação do porquê a frase original é considerada "contada" (telling).' }
+            explanation: { type: "string", description: 'Uma breve explicação do porquê a frase original é considerada "contada" (telling).' }
         },
         required: ["originalText", "suggestions", "explanation"]
     }
@@ -1173,10 +1173,10 @@ export const analyzeShowDontTell = async (text: string): Promise<ShowDontTellSug
 };
 
 const loreConsistencySchema = {
-    type: Type.OBJECT,
+    type: "object",
     properties: {
-        isContradictory: { type: Type.BOOLEAN, description: 'True se a frase contradiz a lore, senão false.' },
-        explanation: { type: Type.STRING, description: 'Uma breve explicação da contradição. Nulo se não for contraditório.' }
+        isContradictory: { type: "boolean", description: 'True se a frase contradiz a lore, senão false.' },
+        explanation: { type: "string", description: 'Uma breve explicação da contradição. Nulo se não for contraditório.' }
     },
     required: ["isContradictory", "explanation"]
 };
@@ -1224,10 +1224,10 @@ export const generateLandingPageIdea = async (prompt: string): Promise<{ title: 
   `;
   
   const schema = {
-      type: Type.OBJECT,
+      type: "object",
       properties: {
-        title: { type: Type.STRING, description: "Um título criativo e cativante para a história." },
-        synopsis: { type: Type.STRING, description: "Uma sinopse curta (1-2 frases) da história." }
+        title: { type: "string", description: "Um título criativo e cativante para a história." },
+        synopsis: { type: "string", description: "Uma sinopse curta (1-2 frases) da história." }
       },
       required: ["title", "synopsis"]
   };
@@ -1345,9 +1345,9 @@ export const getAIFollowUp = async (articleContent: string, question: string): P
 };
 
 const showDontTellAlternativesSchema = {
-    type: Type.ARRAY,
+    type: "array",
     description: 'Uma lista de 2-3 alternativas reescritas que "mostram" a emoção ou estado, em vez de "contar".',
-    items: { type: Type.STRING }
+    items: { type: "string" }
 };
 
 export const generateShowDontTellAlternatives = async (tellingSentence: string): Promise<string[]> => {
