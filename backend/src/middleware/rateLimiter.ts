@@ -10,11 +10,11 @@ export const rateLimiter = rateLimit({
   message: 'Too many requests, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
-  handler: (req, res) => {
+  handler: (req: any, res) => {
     logger.warn(`Rate limit exceeded for IP: ${req.ip}`);
     res.status(429).json({
       error: 'Too many requests',
-      retryAfter: req.rateLimit?.resetTime
+      retryAfter: (req as any).rateLimit?.resetTime
     });
   }
 });

@@ -25,7 +25,9 @@
 
     <!-- Tailwind CSS will be loaded from local build -->
     <script>
-      tailwind.config = {
+      // Wait for Tailwind to load before configuring
+      if (typeof tailwind !== 'undefined') {
+        tailwind.config = {
         theme: {
           extend: {
             colors: {
@@ -76,6 +78,7 @@
             }
           }
         }
+      }
       }
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">

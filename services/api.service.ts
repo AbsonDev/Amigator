@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 /**
  * API Service - Centralizes all API calls to the backend
  * This replaces direct Gemini API calls with secure backend calls
@@ -162,6 +164,20 @@ class ApiService {
     });
   }
 
+  async generateImages(params: { model: string; prompt: string; config: any }) {
+    return this.request('/ai/generate-images', {
+      method: 'POST',
+      body: JSON.stringify(params)
+    });
+  }
+
+  async generateContent(params: { model: string; contents: string; config?: any }) {
+    return this.request('/ai/generate-content', {
+      method: 'POST',
+      body: JSON.stringify(params)
+    });
+  }
+
   async generateChapter(storyContext: any, chapterPrompt: string, previousChapters?: any[]) {
     return this.request('/ai/generate-chapter', {
       method: 'POST',
@@ -205,9 +221,24 @@ class ApiService {
   }
 
   async chat(prompt: string, context?: any, model?: string) {
+    // Validate prompt before sending
+    if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
+      throw new Error('Prompt is required and must be a non-empty string');
+    }
+    
+    // Ensure prompt is within valid length
+    const trimmedPrompt = prompt.trim();
+    if (trimmedPrompt.length > 10000) {
+      throw new Error('Prompt is too long (max 10000 characters)');
+    }
+    
     return this.request('/ai/chat', {
       method: 'POST',
-      body: JSON.stringify({ prompt, context, model })
+      body: JSON.stringify({ 
+        prompt: trimmedPrompt, 
+        context, 
+        model: model || 'gemini-flash' 
+      })
     });
   }
 

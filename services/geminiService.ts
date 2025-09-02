@@ -2,61 +2,46 @@
 
 
 
-import { GoogleGenAI, Type } from "@google/genai";
+import { apiService } from './api.service';
 import type { Story, Chapter, Character, BetaReaderFeedback, ScriptIssue, GrammarSuggestion, RepetitionIssue, Message, WorldEntry, WorldEntryCategory, StoryContent, Relationship, PlotCard, PacingPoint, CharacterVoiceDeviation, ShowDontTellSuggestion, BlogPost } from '../types';
 
-// Get API key from environment or use a fallback for development
-const getApiKey = () => {
-  // Check if we're in a browser environment
-  if (typeof window !== 'undefined') {
-    // In browser, we'll use the backend API instead of direct Gemini calls
-    return null;
-  }
-  
-  // In Node.js environment (backend)
-  return process.env.GEMINI_API_KEY || process.env.API_KEY;
-};
+const GEMINI_FLASH_MODEL = 'gemini-flash';
+const GEMINI_PRO_MODEL = 'gemini-pro';
+const IMAGEN_MODEL = 'imagen-3.5-flash-exp';
 
-// Initialize AI only if we have an API key (for backend usage)
-let ai: GoogleGenAI | null = null;
-try {
-  const apiKey = getApiKey();
-  if (apiKey) {
-    ai = new GoogleGenAI({ apiKey });
+// Helper function to call AI through backend
+async function callAI(prompt: string, context?: any, model: string = GEMINI_FLASH_MODEL): Promise<any> {
+  try {
+    const response = await apiService.chat(prompt, context, model);
+    if (response.data && response.data.response) {
+      // Try to parse JSON if the response looks like JSON
+      const responseText = response.data.response;
+      if (typeof responseText === 'string' && (responseText.trim().startsWith('{') || responseText.trim().startsWith('['))) {
+        try {
+          return JSON.parse(responseText);
+        } catch {
+          return responseText;
+        }
+      }
+      return responseText;
+    }
+    throw new Error('Invalid response from AI service');
+  } catch (error) {
+    console.error('Error calling AI service:', error);
+    throw error;
   }
-} catch (error) {
-  console.warn('Gemini API not initialized - will use backend API instead');
 }
-
-const GEMINI_FLASH_MODEL = 'gemini-2.5-flash';
-const IMAGEN_MODEL = 'imagen-4.0-generate-001';
 
 // Helper to strip HTML tags for AI processing
 const stripHtml = (html: string) => {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    return doc.body.textContent || "";
-};
-
-// Helper function to call backend API
-const callBackendAPI = async (endpoint: string, data: any) => {
-  try {
-    const response = await fetch(`/api/${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Backend API error: ${response.status}`);
+    if (typeof window !== 'undefined' && window.DOMParser) {
+        // Browser environment
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        return doc.body.textContent || "";
+    } else {
+        // Node.js or other environments - use regex fallback
+        return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
     }
-    
-    return await response.json();
-  } catch (error) {
-    console.error(`Backend API call failed for ${endpoint}:`, error);
-    throw new Error(`Falha na comunicação com o servidor. Tente novamente.`);
-  }
 };
 
 export const generateCharacterDialogue = async (story: Story, character: Character, recentContext: string): Promise<string> => {
@@ -87,23 +72,8 @@ export const generateCharacterDialogue = async (story: Story, character: Charact
     `;
 
     try {
-        // If we have direct AI access, use it
-        if (ai) {
-            const response = await ai.models.generateContent({
-                model: GEMINI_FLASH_MODEL,
-                contents: prompt,
-            });
-            return response.text.trim();
-        } else {
-            // Otherwise, use backend API
-            const result = await callBackendAPI('generate-dialogue', {
-                story,
-                character,
-                recentContext,
-                prompt
-            });
-            return result.text || result.dialogue || 'Falha ao gerar diálogo';
-        }
+        const response = await callAI(prompt, { story, character, recentContext });
+        return typeof response === 'string' ? response.trim() : String(response).trim();
     } catch (error) {
         console.error("Error generating character dialogue:", error);
         throw new Error("Falha ao gerar o diálogo. Tente novamente.");
@@ -111,10 +81,12 @@ export const generateCharacterDialogue = async (story: Story, character: Charact
 };
 
 
+// Note: generateBookCover needs special handling as it uses IMAGEN model
+// For now, it will return a placeholder or use the backend's generateCover endpoint
 export const generateBookCover = async (prompt: string, style: string): Promise<string> => {
     const fullPrompt = `Capa de livro, estilo de ${style}. A imagem deve ser puramente artística, SEM NENHUM TEXTO, letras, palavras, títulos ou nomes de autor. Foco total na arte visual evocativa e profissional. Prompt do usuário: "${prompt}"`;
     try {
-        const response = await ai.models.generateImages({
+        const response = await apiService.generateImages({
             model: IMAGEN_MODEL,
             prompt: fullPrompt,
             config: {
@@ -153,11 +125,8 @@ export const formatTextWithAI = async (text: string): Promise<string> => {
         ---
     `;
     try {
-        const response = await ai.models.generateContent({
-            model: GEMINI_FLASH_MODEL,
-            contents: prompt,
-        });
-        return response.text.trim();
+        const response = await callAI(prompt, { text });
+        return typeof response === 'string' ? response.trim() : String(response).trim();
     } catch (error) {
         console.error("Error formatting text with AI:", error);
         throw new Error("Falha ao formatar o texto. Tente novamente.");
@@ -176,11 +145,8 @@ export const extractCharacterAppearance = async (fullText: string, characterName
     ---
   `;
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_FLASH_MODEL,
-      contents: prompt,
-    });
-    return response.text.trim();
+    const response = await callAI(prompt, { fullText, characterName });
+    return typeof response === 'string' ? response.trim() : String(response).trim();
   } catch (error) {
     console.error(`Error extracting appearance for ${characterName}:`, error);
     return "Nenhuma descrição física específica encontrada.";
@@ -198,7 +164,7 @@ export const generateCharacterAvatar = async (appearance: string, genre: string,
   `;
 
   try {
-    const response = await ai.models.generateImages({
+    const response = await apiService.generateImages({
       model: IMAGEN_MODEL,
       prompt: prompt,
       config: {
@@ -291,16 +257,10 @@ export const generateStoryStructure = async (genre: string, theme: string, userP
   };
 
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_FLASH_MODEL,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: generationSchema,
-      },
-    });
-
-    const storyData = JSON.parse(response.text);
+    const fullPrompt = prompt + `\n\nRetorne o resultado EXATAMENTE no formato JSON especificado, sem explicações adicionais.`;
+    const response = await callAI(fullPrompt, { genre, theme, userPrompt });
+    
+    const storyData = typeof response === 'object' ? response : JSON.parse(response);
     const fullText = storyData.chapters.map((c: Chapter) => c.content).join('\n\n');
 
     const charactersWithDetails = [];
@@ -360,7 +320,7 @@ ${stripHtml(context)}
 ---
 `;
   try {
-    const response = await ai.models.generateContent({
+    const response = await apiService.generateContent({
       model: GEMINI_FLASH_MODEL,
       contents: prompt,
     });
@@ -387,7 +347,7 @@ ${text}
 Retorne apenas o texto modificado, sem comentários ou formatação extra.`;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await apiService.generateContent({
       model: GEMINI_FLASH_MODEL,
       contents: prompt,
     });
@@ -421,7 +381,7 @@ ${stripHtml(chapterContent)}
 ---
 `;
   try {
-    const response = await ai.models.generateContent({
+    const response = await apiService.generateContent({
       model: GEMINI_FLASH_MODEL,
       contents: prompt,
       config: {
@@ -437,13 +397,13 @@ ${stripHtml(chapterContent)}
 };
 
 const scriptAnalysisSchema = {
-    type: Type.ARRAY,
+    type: "array",
     items: {
-        type: Type.OBJECT,
+        type: "object",
         properties: {
-            description: { type: Type.STRING, description: 'Uma descrição clara e concisa do furo de roteiro ou inconsistência encontrada.' },
-            involvedChapters: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Uma lista dos títulos dos capítulos onde a inconsistência é relevante.' },
-            suggestion: { type: Type.STRING, description: 'Uma sugestão construtiva sobre como o autor poderia resolver esse problema.' }
+            description: { type: "string", description: 'Uma descrição clara e concisa do furo de roteiro ou inconsistência encontrada.' },
+            involvedChapters: { type: "array", items: { type: "string" }, description: 'Uma lista dos títulos dos capítulos onde a inconsistência é relevante.' },
+            suggestion: { type: "string", description: 'Uma sugestão construtiva sobre como o autor poderia resolver esse problema.' }
         },
         required: ["description", "involvedChapters", "suggestion"]
     }
@@ -473,7 +433,7 @@ export const analyzeScriptContinuity = async (story: Story): Promise<ScriptIssue
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await apiService.generateContent({
             model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {
@@ -513,7 +473,7 @@ export const checkGrammar = async (text: string): Promise<GrammarSuggestion[]> =
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await apiService.generateContent({
             model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {
@@ -555,7 +515,7 @@ export const analyzeRepetitions = async (story: Story): Promise<RepetitionIssue[
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await apiService.generateContent({
             model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {
@@ -620,7 +580,7 @@ export const importStoryFromText = async (textContent: string, authorId: string)
   `;
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await apiService.generateContent({
       model: GEMINI_FLASH_MODEL,
       contents: prompt,
       config: {
@@ -790,7 +750,7 @@ export const chatWithAgent = async (story: Story, conversation: Message[], newMe
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await apiService.generateContent({
             model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {
@@ -838,7 +798,7 @@ export const generateInspiration = async (type: 'what-if' | 'plot-twist' | 'name
   }
   
   try {
-    const response = await ai.models.generateContent({
+    const response = await apiService.generateContent({
       model: GEMINI_FLASH_MODEL,
       contents: prompt,
     });
@@ -877,7 +837,7 @@ export const analyzeTextForWorldEntries = async (text: string): Promise<Omit<Wor
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await apiService.generateContent({
             model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {
@@ -933,7 +893,7 @@ export const suggestCharacterRelationships = async (story: Story, characterId: s
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await apiService.generateContent({
             model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {
@@ -990,7 +950,7 @@ export const suggestPlotPointsFromSummaries = async (story: Story): Promise<Omit
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await apiService.generateContent({
             model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {
@@ -1058,7 +1018,7 @@ ${stripHtml(c.content).substring(0, 8000)}
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await apiService.generateContent({
             model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {
@@ -1113,7 +1073,7 @@ export const analyzeCharacterVoice = async (story: Story, character: Character):
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await apiService.generateContent({
             model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {
@@ -1154,7 +1114,7 @@ export const chatWithCharacter = async (story: Story, character: Character, conv
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await apiService.generateContent({
             model: GEMINI_FLASH_MODEL,
             contents: prompt,
         });
@@ -1197,7 +1157,7 @@ export const analyzeShowDontTell = async (text: string): Promise<ShowDontTellSug
     `;
 
     try {
-        const response = await ai.models.generateContent({
+        const response = await apiService.generateContent({
             model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {
@@ -1234,7 +1194,7 @@ export const checkLoreConsistency = async (sentence: string, entityName: string,
     `;
     
     try {
-        const response = await ai.models.generateContent({
+        const response = await apiService.generateContent({
             model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {
@@ -1273,7 +1233,7 @@ export const generateLandingPageIdea = async (prompt: string): Promise<{ title: 
   };
 
   try {
-    const response = await ai.models.generateContent({
+    const response = await apiService.generateContent({
       model: GEMINI_FLASH_MODEL,
       contents: generationPrompt,
       config: {
@@ -1294,36 +1254,32 @@ export const generateStoryIdeas = async (genre: string): Promise<{ themes: strin
     
     Gênero: "${genre}"
 
-    Retorne o resultado em um objeto JSON.
+    Retorne o resultado EXATAMENTE neste formato JSON:
+    {
+      "themes": ["tema1", "tema2", "tema3", "tema4"],
+      "startingPoints": ["ponto1", "ponto2", "ponto3", "ponto4"]
+    }
+    
+    Importante: 
+    - themes deve conter 3 a 4 temas principais cativantes para uma história neste gênero
+    - startingPoints deve conter 3 a 4 pontos de partida ou ideias de cena de abertura
+    - Retorne APENAS o JSON, sem explicações adicionais
   `;
-  
-  const schema = {
-      type: Type.OBJECT,
-      properties: {
-        themes: { 
-            type: Type.ARRAY, 
-            description: "Uma lista de 3 a 4 temas principais cativantes para uma história neste gênero.",
-            items: { type: Type.STRING }
-        },
-        startingPoints: {
-            type: Type.ARRAY,
-            description: "Uma lista de 3 a 4 pontos de partida ou ideias de cena de abertura para uma história neste gênero.",
-            items: { type: Type.STRING }
-        }
-      },
-      required: ["themes", "startingPoints"]
-  };
 
   try {
-    const response = await ai.models.generateContent({
-      model: GEMINI_FLASH_MODEL,
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: schema,
-      },
-    });
-    return JSON.parse(response.text);
+    const response = await callAI(prompt, { genre }, GEMINI_FLASH_MODEL);
+    
+    // Se response já é um objeto, retorna direto
+    if (typeof response === 'object' && response.themes && response.startingPoints) {
+      return response;
+    }
+    
+    // Caso contrário, tenta fazer o parse
+    if (typeof response === 'string') {
+      return JSON.parse(response);
+    }
+    
+    throw new Error('Formato de resposta inválido');
   } catch (error) {
     console.error("Error generating story ideas:", error);
     throw new Error("Falha ao gerar ideias. Tente novamente.");
@@ -1344,7 +1300,7 @@ export const generateWeeklyChallengePrompt = async (): Promise<string> => {
     Retorne APENAS o texto do prompt.
   `;
   try {
-    const response = await ai.models.generateContent({
+    const response = await apiService.generateContent({
       model: GEMINI_FLASH_MODEL,
       contents: prompt,
     });
@@ -1377,7 +1333,7 @@ export const getAIFollowUp = async (articleContent: string, question: string): P
         - Retorne apenas o texto da sua resposta.
     `;
     try {
-        const response = await ai.models.generateContent({
+        const response = await apiService.generateContent({
             model: GEMINI_FLASH_MODEL,
             contents: prompt,
         });
@@ -1405,7 +1361,7 @@ export const generateShowDontTellAlternatives = async (tellingSentence: string):
         Resultado: ["Seu coração martelava contra as costelas como um tambor de guerra.", "Ele recuou, com os olhos arregalados, um suor frio brotando em sua testa.", "Cada sombra no canto da sala parecia se contorcer, e ele não conseguia parar de tremer."]
     `;
     try {
-        const response = await ai.models.generateContent({
+        const response = await apiService.generateContent({
             model: GEMINI_FLASH_MODEL,
             contents: prompt,
             config: {

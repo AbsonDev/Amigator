@@ -230,7 +230,7 @@ export class AuthController {
   /**
    * Logout
    */
-  logout = async (req: AuthRequest, res: Response, next: NextFunction) => {
+  logout = async (_req: AuthRequest, res: Response, next: NextFunction) => {
     try {
       // In a real app, you might want to invalidate the token here
       // For now, we'll just return success
