@@ -385,8 +385,16 @@ export class GeminiService {
 
       const result = await this.model.generateContent(fullPrompt);
       const response = await result.response;
+      let responseText = response.text();
       
-      return response.text();
+      // Clean up markdown code blocks if present
+      if (responseText.includes('```json')) {
+        responseText = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+      } else if (responseText.includes('```')) {
+        responseText = responseText.replace(/```[a-z]*\s*/g, '').replace(/```\s*/g, '');
+      }
+      
+      return responseText.trim();
     } catch (error) {
       logger.error('Error in chat:', error);
       throw new AppError('Failed to generate response', 500);
