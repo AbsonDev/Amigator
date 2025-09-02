@@ -13,19 +13,31 @@ const IMAGEN_MODEL = 'imagen-3.5-flash-exp';
 async function callAI(prompt: string, context?: any, model: string = GEMINI_FLASH_MODEL): Promise<any> {
   try {
     const response = await apiService.chat(prompt, context, model);
-    if (response.data && response.data.response) {
-      // Try to parse JSON if the response looks like JSON
-      const responseText = response.data.response;
-      if (typeof responseText === 'string' && (responseText.trim().startsWith('{') || responseText.trim().startsWith('['))) {
-        try {
-          return JSON.parse(responseText);
-        } catch {
-          return responseText;
-        }
-      }
-      return responseText;
+    
+    // Handle the response based on the actual structure from backend
+    // Backend returns { success: true, data: { response: "..." } }
+    let responseText;
+    
+    if (response && response.response) {
+      // Direct response from apiService (already extracted from data)
+      responseText = response.response;
+    } else if (response && typeof response === 'string') {
+      // If response is already a string
+      responseText = response;
+    } else {
+      throw new Error('Invalid response format from AI service');
     }
-    throw new Error('Invalid response from AI service');
+    
+    // Try to parse JSON if the response looks like JSON
+    if (typeof responseText === 'string' && (responseText.trim().startsWith('{') || responseText.trim().startsWith('['))) {
+      try {
+        return JSON.parse(responseText);
+      } catch {
+        return responseText;
+      }
+    }
+    
+    return responseText;
   } catch (error) {
     console.error('Error calling AI service:', error);
     throw error;
